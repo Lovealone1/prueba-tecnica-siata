@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL para desarrollo
+  db:
+    image: postgres:16.3
+    container_name: db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pt-siata
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d pt-siata" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # Redis cache
+  social-redis:
+    image: redis:7-alpine
+    container_name: social-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-secret} --logLevel warning
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-secret}
+
+  # Redis Commander - Web UI for Redis
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    hostname: redis-commander
+    environment:
+      - REDIS_HOSTS=local:social-redis:6379:0:${REDIS_PASSWORD:-secret}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      - social-redis
+  # Backend (Se definirá la imagen más adelante)
+  # prueba-tecnica-siata:
+  #   build: .
+  #   container_name: prueba-tecnica-siata
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:password@db:5432/fifawcp
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-secret}@social-redis:6379/0
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     social-redis:
+  #       condition: service_started
+
+volumes:
+  redis_data:
+  postgres_dev_data:
