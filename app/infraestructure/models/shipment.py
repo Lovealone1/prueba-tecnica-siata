@@ -35,6 +35,9 @@ class Shipment(Base):
     discount_percentage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     total_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     
+    dispatch_location: Mapped[str] = mapped_column(String(100), server_default='USA', default='USA', nullable=False)
+    dispatch_continent: Mapped[str] = mapped_column(String(100), server_default='North America', default='North America', nullable=False)
+    
     guide_number: Mapped[str] = mapped_column(String(10), unique=True, index=True, nullable=False)
     vehicle_plate: Mapped[str | None] = mapped_column(String(6), nullable=True)
     fleet_number: Mapped[str | None] = mapped_column(String(8), nullable=True)

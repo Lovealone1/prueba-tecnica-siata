@@ -12,6 +12,8 @@ CREATE TABLE shipments (
     base_price NUMERIC(12, 2) NOT NULL,
     discount_percentage FLOAT DEFAULT 0.0,
     total_price NUMERIC(12, 2) NOT NULL,
+    dispatch_location VARCHAR(100) NOT NULL DEFAULT 'USA',
+    dispatch_continent VARCHAR(100) NOT NULL DEFAULT 'North America',
     guide_number VARCHAR(10) NOT NULL UNIQUE,
     vehicle_plate VARCHAR(6),
     fleet_number VARCHAR(8),
