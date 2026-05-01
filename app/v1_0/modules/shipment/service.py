@@ -1,12 +1,12 @@
 import uuid
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional
 
 from fastapi import HTTPException, status
 
 from app.v1_0.modules.shipment.domain import IShipmentRepository
-from app.infraestructure.models.shipment import Shipment, ShippingType
+from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus
 from app.v1_0.modules.shipment.dto.schemas import ShipmentCreateDTO, ShipmentUpdateDTO, ShipmentListResponseDTO, ShipmentResponseDTO
 from app.utils.shipment_calculator import ShipmentCalculator
 from app.utils.shipment_helpers import generate_vehicle_plate, generate_fleet_number
@@ -49,19 +49,55 @@ class ShipmentService:
         self._seaport_repo = seaport_repo
         self._redis_cache = redis_cache
 
-    async def get_all(self, skip: int = 0, limit: int = 100) -> ShipmentListResponseDTO:
+    async def get_all(
+        self, 
+        skip: int = 0, 
+        limit: int = 100,
+        customer_id: Optional[uuid.UUID] = None,
+        dispatch_location: Optional[str] = None,
+        destination_country: Optional[str] = None,
+        shipping_type: Optional[ShippingType] = None,
+        shipping_status: Optional[ShippingStatus] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> ShipmentListResponseDTO:
         """
-        Retrieves a paginated list of shipments.
+        Retrieves a paginated and filtered list of shipments.
         
         Args:
             skip: Number of records to skip.
             limit: Maximum number of records to return.
+            customer_id: Optional customer filter.
+            dispatch_location: Optional origin country filter.
+            destination_country: Optional destination country filter (searches in warehouses/seaports).
+            shipping_type: Optional LAND/MARITIME filter.
+            shipping_status: Optional PENDING/SENT/DELIVERED filter.
+            start_date: Optional starting date for registry_date filter.
+            end_date: Optional ending date for registry_date filter.
             
         Returns:
             ShipmentListResponseDTO containing the list of shipments and total count.
         """
-        shipments = await self._shipment_repo.get_all(skip=skip, limit=limit)
-        total = await self._shipment_repo.count_all()
+        shipments = await self._shipment_repo.get_all(
+            skip=skip, 
+            limit=limit,
+            customer_id=customer_id,
+            dispatch_location=dispatch_location,
+            destination_country=destination_country,
+            shipping_type=shipping_type,
+            shipping_status=shipping_status,
+            start_date=start_date,
+            end_date=end_date
+        )
+        total = await self._shipment_repo.count_all(
+            customer_id=customer_id,
+            dispatch_location=dispatch_location,
+            destination_country=destination_country,
+            shipping_type=shipping_type,
+            shipping_status=shipping_status,
+            start_date=start_date,
+            end_date=end_date
+        )
         
         return ShipmentListResponseDTO(
             data=[ShipmentResponseDTO.model_validate(s) for s in shipments],
@@ -261,6 +297,7 @@ class ShipmentService:
     async def update(self, shipment_id: uuid.UUID, dto: ShipmentUpdateDTO) -> ShipmentResponseDTO:
         """
         Updates the status or identification of an existing shipment.
+        Only allowed if the shipment is currently in PENDING status.
         
         Args:
             shipment_id: UUID of the shipment to update.
@@ -268,10 +305,20 @@ class ShipmentService:
             
         Returns:
             ShipmentResponseDTO with the updated shipment.
+            
+        Raises:
+            HTTPException: If shipment not found or if status is not PENDING.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
+
+        # BUSINESS RULE: Locked if not PENDING
+        if shipment.shipping_status != ShippingStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Only shipments in PENDING status can be modified. Current status: {shipment.shipping_status}"
+            )
 
         if dto.shipping_status is not None:
             shipment.shipping_status = dto.shipping_status

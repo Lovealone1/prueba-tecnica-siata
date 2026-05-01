@@ -1,5 +1,6 @@
 import uuid
 from typing import Optional
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 from dependency_injector.wiring import Provide, inject
@@ -15,6 +16,7 @@ from app.v1_0.modules.shipment.dto.schemas import (
 from app.middlewares.auth import require_authenticated
 from app.middlewares.roles import require_roles
 from app.infraestructure.models.user import GlobalRole
+from app.infraestructure.models.shipment import ShippingType, ShippingStatus
 
 router = APIRouter(prefix="/shipments", tags=["Shipments"])
 
@@ -43,9 +45,26 @@ async def create_shipment(
 async def list_shipments(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    customer_id: Optional[uuid.UUID] = Query(None),
+    dispatch_location: Optional[str] = Query(None),
+    destination_country: Optional[str] = Query(None),
+    shipping_type: Optional[ShippingType] = Query(None),
+    shipping_status: Optional[ShippingStatus] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
 ):
-    return await shipment_service.get_all(skip=skip, limit=limit)
+    return await shipment_service.get_all(
+        skip=skip, 
+        limit=limit,
+        customer_id=customer_id,
+        dispatch_location=dispatch_location,
+        destination_country=destination_country,
+        shipping_type=shipping_type,
+        shipping_status=shipping_status,
+        start_date=start_date,
+        end_date=end_date
+    )
 
 @router.get(
     "/{shipment_id}",
