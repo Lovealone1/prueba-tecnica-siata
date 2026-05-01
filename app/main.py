@@ -38,10 +38,6 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     container = ApplicationContainer()
     container.db_session.override(async_session)
-    try:
-        container.wire(packages=["app.v1_0"])
-    except Exception:
-        pass
 
     app = FastAPI(
         title=settings.APP_NAME,

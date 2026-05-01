@@ -2,12 +2,21 @@ from dependency_injector import containers, providers
 from app.v1_0.modules.auth.service import AuthService
 from app.v1_0.modules.auth.repository import UserRepository
 from app.v1_0.modules.auth.otp import DevOtpSender, ProdOtpSender
+from app.v1_0.modules.customer.repository import CustomerRepository
+from app.v1_0.modules.customer.service import CustomerService
+
 
 class APIContainer(containers.DeclarativeContainer):
     """
     Container of dependencies specific to the v1_0 API version.
     Here you can inject repositories, services and use cases.
     """
+    wiring_config = containers.WiringConfiguration(
+        modules=[
+            "app.v1_0.modules.auth.router",
+            "app.v1_0.modules.customer.router",
+        ]
+    )
     db_session = providers.Dependency()
     redis_cache_service = providers.Dependency()
     mail_service = providers.Dependency()
@@ -29,4 +38,18 @@ class APIContainer(containers.DeclarativeContainer):
         user_repository=user_repository,
         redis_cache=redis_cache_service,
         otp_sender=otp_sender
+    )
+
+    # ------------------------------------------------------------------
+    # Customer
+    # ------------------------------------------------------------------
+
+    customer_repository = providers.Factory(
+        CustomerRepository,
+        db_maker=db_session,
+    )
+
+    customer_service = providers.Singleton(
+        CustomerService,
+        customer_repository=customer_repository,
     )
