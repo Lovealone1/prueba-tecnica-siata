@@ -49,13 +49,10 @@ class ShipmentRepository(IShipmentRepository):
             )
 
         if start_date:
-            # Normalize to beginning of day in UTC (or the system TZ if not specified)
-            # Since our DB stores UTC datetimes
             start_dt = datetime.combine(start_date, time.min).replace(tzinfo=timezone.utc)
             query = query.where(Shipment.registry_date >= start_dt)
             
         if end_date:
-            # Normalize to end of day in UTC
             end_dt = datetime.combine(end_date, time.max).replace(tzinfo=timezone.utc)
             query = query.where(Shipment.registry_date <= end_dt)
         
@@ -150,7 +147,6 @@ class ShipmentRepository(IShipmentRepository):
 
     async def get_admin_stats(self) -> dict:
         async with self.db_maker() as session:
-            # 1. Basic counts
             total_query = select(func.count(Shipment.id))
             revenue_query = select(func.sum(Shipment.total_price))
             status_query = select(Shipment.shipping_status, func.count(Shipment.id)).group_by(Shipment.shipping_status)
@@ -159,10 +155,6 @@ class ShipmentRepository(IShipmentRepository):
             revenue_res = await session.execute(revenue_query)
             status_res = await session.execute(status_query)
             
-            # 2. Top destinations (Country from Warehouse or Seaport)
-            # This is complex because country is in joined tables. 
-            # We'll simplify for now to top dispatch locations if destination country is too slow,
-            # but let's try the destination join.
             dest_query = select(
                 func.coalesce(Warehouse.country, Seaport.country).label("country"), 
                 func.count(Shipment.id)

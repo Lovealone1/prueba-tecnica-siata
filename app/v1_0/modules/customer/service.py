@@ -21,10 +21,25 @@ class CustomerService:
     """
 
     def __init__(self, customer_repository: ICustomerRepository) -> None:
+        """
+        Initializes the service with the customer repository.
+
+        Args:
+            customer_repository: Data access layer for customer entities.
+        """
         self.repo = customer_repository
 
     async def list_customers(self, skip: int = 0, limit: int = 100) -> CustomerListResponseDTO:
-        """Returns a paginated list of customers."""
+        """
+        Retrieves a paginated list of customers from the system.
+
+        Args:
+            skip: Number of records to skip for pagination.
+            limit: Maximum number of records to return.
+
+        Returns:
+            CustomerListResponseDTO containing the list of customers and total count.
+        """
         customers = await self.repo.get_all(skip=skip, limit=limit)
         total = await self.repo.count_all()
         return CustomerListResponseDTO(
@@ -35,7 +50,18 @@ class CustomerService:
         )
 
     async def get_customer(self, customer_id: uuid.UUID) -> CustomerResponseDTO:
-        """Retrieves a customer by its UUID. Raises 404 if it does not exist."""
+        """
+        Retrieves a specific customer by its unique identifier.
+
+        Args:
+            customer_id: The unique identifier of the customer.
+
+        Returns:
+            CustomerResponseDTO containing the customer details.
+
+        Raises:
+            HTTPException: 404 if the customer is not found.
+        """
         customer = await self.repo.get_by_id(customer_id)
         if not customer:
             raise HTTPException(
@@ -46,11 +72,21 @@ class CustomerService:
 
     async def create_customer(self, payload: CustomerCreateDTO) -> CustomerResponseDTO:
         """
-        Creates a new customer.
+        Registers a new customer in the system.
 
-        Validations:
-        - unique identifier
-        - unique email
+        Workflow:
+        1. Validates that the unique identifier (e.g., tax ID) is not already registered.
+        2. Validates that the provided email address is unique.
+        3. Persists the new customer entity and logs the creation event.
+
+        Args:
+            payload: Data transfer object containing the new customer's details.
+
+        Returns:
+            CustomerResponseDTO with the created customer data.
+
+        Raises:
+            HTTPException: 409 if the identifier or email already exists.
         """
         if await self.repo.get_by_identifier(payload.identifier):
             raise HTTPException(
@@ -80,10 +116,26 @@ class CustomerService:
         payload: CustomerUpdateDTO,
     ) -> CustomerResponseDTO:
         """
-        Partially updates a customer (PATCH).
+        Updates an existing customer's contact and location details.
 
-        - The `identifier` is immutable and cannot be modified here.
-        - Validates email uniqueness if attempting to change it.
+        Workflow:
+        1. Retrieves the customer and verifies its existence.
+        2. Captures the current state of modified fields for audit logging.
+        3. If email is updated, ensures the new address is not taken by another customer.
+        4. Applies the updates and persists the entity.
+        5. Calculates the state diff and stores it in the global audit context for middleware.
+
+        Args:
+            customer_id: The unique identifier of the customer to update.
+            payload: Data transfer object with the fields to update.
+
+        Returns:
+            CustomerResponseDTO with the updated customer details.
+
+        Raises:
+            HTTPException:
+                - 404: If the customer is not found.
+                - 409: If the new email address is already in use.
         """
         customer = await self.repo.get_by_id(customer_id)
         if not customer:
@@ -94,7 +146,6 @@ class CustomerService:
 
         update_data = payload.model_dump(exclude_unset=True)
 
-        # 1. Capture 'before' state for auditing
         before_state = {field: getattr(customer, field) for field in update_data}
 
         if "email" in update_data:
@@ -112,7 +163,6 @@ class CustomerService:
 
         updated = await self.repo.update(customer)
 
-        # 2. Compare with 'after' state and save diff in context
         diff = {}
         for field, old_val in before_state.items():
             new_val = getattr(updated, field)
@@ -127,7 +177,19 @@ class CustomerService:
         return CustomerResponseDTO.model_validate(updated)
 
     async def delete_customer(self, customer_id: uuid.UUID) -> None:
-        """Deletes a customer. Raises 404 if it does not exist."""
+        """
+        Permanently removes a customer from the system.
+
+        Workflow:
+        1. Retrieves the customer and verifies it exists.
+        2. Invokes the repository to delete the record.
+
+        Args:
+            customer_id: The unique identifier of the customer to delete.
+
+        Raises:
+            HTTPException: 404 if the customer is not found.
+        """
         customer = await self.repo.get_by_id(customer_id)
         if not customer:
             raise HTTPException(

@@ -36,15 +36,15 @@ class ShipmentService:
         redis_cache: RedisCacheService
     ):
         """
-        Initializes the service with required repositories and Redis cache.
-        
+        Initializes the service with all required infrastructure and data access layers.
+
         Args:
-            shipment_repo: Repository for shipment persistence.
-            customer_repo: Repository for customer validation.
-            product_repo: Repository for product details.
-            warehouse_repo: Repository for land infrastructure.
-            seaport_repo: Repository for maritime infrastructure.
-            redis_cache: Redis service for atomic serial generation.
+            shipment_repo: Repository for shipment persistence and status management.
+            customer_repo: Repository for customer validation and lookup.
+            product_repo: Repository for product details and physical attributes.
+            warehouse_repo: Repository for land-based logistics infrastructure.
+            seaport_repo: Repository for maritime logistics infrastructure.
+            redis_cache: Redis service used for distributed atomic serial generation.
         """
         self._shipment_repo = shipment_repo
         self._customer_repo = customer_repo
@@ -67,21 +67,22 @@ class ShipmentService:
         end_date: Optional[date] = None
     ) -> ShipmentListResponseDTO:
         """
-        Retrieves a paginated and filtered list of shipments.
-        
+        Retrieves a paginated and filtered list of shipments from the system.
+
         Args:
-            skip: Number of records to skip.
-            limit: Maximum number of records to return.
-            customer_id: Optional customer filter.
-            dispatch_location: Optional origin country filter.
-            destination_country: Optional destination country filter (searches in warehouses/seaports).
-            shipping_type: Optional LAND/MARITIME filter.
-            shipping_status: Optional PENDING/SENT/DELIVERED filter.
-            start_date: Optional starting date for registry_date filter.
-            end_date: Optional ending date for registry_date filter.
-            
+            skip: Number of records to skip for pagination.
+            limit: Maximum number of records to return per request.
+            customer_id: Unique identifier of the customer to filter by.
+            dispatch_location: Origin country name to filter by.
+            destination_country: Destination country name to filter by.
+            shipping_type: Transport mode (LAND or MARITIME) to filter by.
+            shipping_status: Current status (PENDING, SENT, DELIVERED) to filter by.
+            guide_number: Exact alphanumeric guide number to search for.
+            start_date: Initial date for the registry_date range filter.
+            end_date: Final date for the registry_date range filter.
+
         Returns:
-            ShipmentListResponseDTO containing the list of shipments and total count.
+            ShipmentListResponseDTO containing the list of validated shipments and the total count.
         """
         shipments = await self._shipment_repo.get_all(
             skip=skip, 
@@ -136,14 +137,13 @@ class ShipmentService:
 
     def _to_base36(self, number: int) -> str:
         """
-        Converts an integer to a base36 (alphanumeric 0-9, A-Z) string.
-        Used to create compact and professional serial numbers.
-        
+        Converts a decimal integer to its alphanumeric Base36 (0-9, A-Z) representation.
+
         Args:
-            number: The integer to convert.
-            
+            number: The decimal integer to be converted.
+
         Returns:
-            String representation in Base36.
+            A string representing the number in Base36 format.
         """
         chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         if number == 0:
@@ -156,21 +156,21 @@ class ShipmentService:
 
     async def _generate_unique_guide_number(self, country: str, continent: str) -> str:
         """
-        Generates a globally unique, serialized guide number.
-        
-        This implementation uses Redis INCR to ensure atomic sequentiality. 
-        In a distributed environment with multiple devices/servers, Redis ensures 
-        that no two requests receive the same serial number, even if they occur 
-        at the exact same microsecond.
-        
-        Format: COUNTRY(3) + CONT(3) + DATE(YYMMDD) + SERIAL(Base36, 5 chars)
-        
+        Generates a globally unique, serialized guide number for logistics tracking.
+
+        Workflow:
+        1. Normalizes country and continent names into 3-character prefixes.
+        2. Retrieves the current Colombian date in YYMMDD format.
+        3. Performs an atomic increment in Redis to ensure sequentiality across distributed instances.
+        4. Converts the serial integer to a Base36 string and pads it to 5 characters.
+        5. Concatenates all segments into a 17-character guide number.
+
         Args:
-            country: Destination country name.
-            continent: Destination continent name.
-            
+            country: The destination country name.
+            continent: The destination continent name.
+
         Returns:
-            A unique alphanumeric guide number.
+            A unique 17-character alphanumeric guide number (e.g., COLSA260501000A1).
         """
         c_code = country.strip().upper()[:3]
         cont_code = continent.strip().upper()[:3]
@@ -179,7 +179,6 @@ class ShipmentService:
         now_col = now_colombian_time()
         date_prefix = now_col.strftime("%y%m%d")
         
-        # Atomic increment ensures thread-safety and distributed concurrency safety
         serial_int = await self._redis_cache.incr("shipment_guide_serial")
         serial_b36 = self._to_base36(serial_int).zfill(5)
         
@@ -187,23 +186,27 @@ class ShipmentService:
 
     async def create(self, dto: ShipmentCreateDTO) -> ShipmentResponseDTO:
         """
-        Creates a new shipment, calculating logistics and pricing automatically.
-        
+        Orchestrates the creation of a new shipment, automating logistics and financial calculations.
+
         Workflow:
-        1. Validates Customer and Product existence.
-        2. Resolves destination geography (Warehouse or Seaport).
-        3. Calculates Shipping Type (LAND/MARITIME), ETA and Base Cost.
-        4. Applies automatic business discounts (>10 units).
-        5. Generates unique Guide Number and Vehicle/Fleet identification.
-        
+        1. Validates the existence of the Customer and Product entities.
+        2. Resolves the destination geography using the provided Warehouse or Seaport.
+        3. Invokes the ShipmentCalculator to determine the Shipping Type (LAND/MARITIME), ETA, and Base Cost.
+        4. Validates that the requested infrastructure (Warehouse/Seaport) matches the calculated Shipping Type.
+        5. Applies business discounts automatically if the quantity exceeds 10 units.
+        6. Generates a unique Guide Number and assigns a Vehicle Plate or Fleet Number.
+        7. Persists the shipment record and returns a detailed breakdown of the costs.
+
         Args:
-            dto: Data transfer object with shipment details.
-            
+            dto: Data transfer object containing the customer's shipment request details.
+
         Returns:
-            ShipmentResponseDTO with the newly created shipment.
-            
+            ShipmentResponseDTO with the finalized shipment data, including a price breakdown.
+
         Raises:
-            HTTPException: If related entities or logistics constraints are violated.
+            HTTPException: 
+                - 404: If the customer, product, warehouse, or seaport is not found.
+                - 400: If logistics constraints are violated or mandatory identifiers are missing.
         """
         customer = await self._customer_repo.get_by_id(dto.customer_id)
         if not customer:
@@ -297,29 +300,46 @@ class ShipmentService:
 
         created_shipment = await self._shipment_repo.create(shipment)
         
-        # Prepare response with clear breakdown for the frontend
         response = ShipmentResponseDTO.model_validate(created_shipment)
-        response.base_price = total_base_price # Pure base price (without extra fee)
-        response.applied_extra_fee = extra_fee # The bonus fee
+        response.base_price = total_base_price 
+        response.applied_extra_fee = extra_fee 
         return response
 
     async def update(self, shipment_id: uuid.UUID, dto: ShipmentUpdateDTO) -> ShipmentResponseDTO:
         """
-        Updates an existing shipment. Allows correcting order details (product, quantity, destination)
-        only if the shipment is currently in PENDING status. Recalculates pricing and logistics.
+        Updates an existing shipment's details, allowing corrections while it remains in PENDING status.
+
+        Workflow:
+        1. Retrieves the shipment and verifies it exists.
+        2. Enforces the business rule that only PENDING shipments can be modified.
+        3. Detects changes in product, quantity, or destination (Warehouse/Seaport).
+        4. If core logistics data changed, triggers a full recalculation of ETA, shipping type, and pricing.
+        5. Validates that new destination choices remain compatible with the calculated logistics route.
+        6. Updates vehicle or fleet identifiers if manually provided.
+        7. Persists the changes and returns the updated shipment with a current cost breakdown.
+
+        Args:
+            shipment_id: The unique identifier of the shipment to update.
+            dto: Data transfer object containing the fields to be updated.
+
+        Returns:
+            ShipmentResponseDTO with the updated shipment details.
+
+        Raises:
+            HTTPException:
+                - 404: If the shipment or any new related entities are not found.
+                - 400: If the shipment is not PENDING or if logistics constraints are violated.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
 
-        # BUSINESS RULE: Locked if not PENDING
         if shipment.shipping_status != ShippingStatus.PENDING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Only shipments in PENDING status can be modified. Current status: {shipment.shipping_status}"
             )
 
-        # 1. Detect changes that require recalculation
         recalculate = False
         
         if dto.product_id is not None and dto.product_id != shipment.product_id:
@@ -335,7 +355,6 @@ class ShipmentService:
             shipment.product_quantity = dto.product_quantity
             recalculate = True
 
-        # Handle destination changes
         new_warehouse_id = dto.warehouse_id if dto.warehouse_id is not None else (shipment.warehouse_id if not dto.seaport_id else None)
         new_seaport_id = dto.seaport_id if dto.seaport_id is not None else (shipment.seaport_id if not dto.warehouse_id else None)
 
@@ -344,9 +363,8 @@ class ShipmentService:
             shipment.seaport_id = new_seaport_id
             recalculate = True
 
-        # 2. Re-run Logistics and Pricing calculation if needed
         extra_fee = 0.0
-        total_base_price = shipment.base_price # Default to existing if no recalculation
+        total_base_price = shipment.base_price 
         
         if recalculate:
             dest_country = ""
@@ -363,7 +381,6 @@ class ShipmentService:
             else:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Shipment must have a warehouse_id or seaport_id.")
 
-            # Calculate new logistics
             shipping_type, eta, total_base_price, extra_fee = ShipmentCalculator.calculate(
                 dispatch_country=shipment.dispatch_location,
                 dispatch_continent=shipment.dispatch_continent,
@@ -374,13 +391,11 @@ class ShipmentService:
                 registry_date=shipment.registry_date
             )
 
-            # Validation: Mismatch check
             if shipping_type == ShippingType.LAND and not shipment.warehouse_id:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Route requires a warehouse_id.")
             if shipping_type == ShippingType.MARITIME and not shipment.seaport_id:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Route requires a seaport_id.")
 
-            # Update pricing fields
             auto_discount = 5.0 if shipping_type == ShippingType.LAND else 3.0
             final_discount_percentage = auto_discount if shipment.product_quantity > 10 else 0.0
             
@@ -393,7 +408,6 @@ class ShipmentService:
             shipment.discount_percentage = final_discount_percentage
             shipment.total_price = total_price
             
-            # If shipping type changed, we might need to reset vehicle/fleet
             if shipping_type == ShippingType.LAND:
                 shipment.seaport_id = None
                 shipment.fleet_number = None
@@ -401,7 +415,6 @@ class ShipmentService:
                 shipment.warehouse_id = None
                 shipment.vehicle_plate = None
 
-        # 3. Manual vehicle/fleet updates (optional)
         if dto.vehicle_plate is not None:
             if shipment.shipping_type != ShippingType.LAND:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="vehicle_plate is only valid for LAND shipping.")
@@ -414,10 +427,8 @@ class ShipmentService:
 
         updated_shipment = await self._shipment_repo.update(shipment)
         
-        # Prepare response
         response = ShipmentResponseDTO.model_validate(updated_shipment)
         
-        # We need the destination info for the breakdown calculation
         if not recalculate:
             dest_country = ""
             dest_continent = ""
@@ -447,7 +458,20 @@ class ShipmentService:
 
     async def delete(self, shipment_id: uuid.UUID) -> None:
         """
-        Deletes a shipment record. Only allowed if PENDING.
+        Permanently removes a shipment record from the system.
+
+        Workflow:
+        1. Retrieves the shipment and verifies it exists.
+        2. Enforces the business rule that only PENDING shipments can be deleted.
+        3. Invokes the repository to remove the record.
+
+        Args:
+            shipment_id: The unique identifier of the shipment to delete.
+
+        Raises:
+            HTTPException:
+                - 404: If the shipment is not found.
+                - 400: If the shipment status is not PENDING.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
@@ -465,8 +489,27 @@ class ShipmentService:
 
     async def admin_update_status(self, shipment_id: uuid.UUID, dto: ShipmentAdminUpdateDTO) -> ShipmentResponseDTO:
         """
-        Admin-only status update. Enforces sequential transitions:
-        PENDING -> SENT -> DELIVERED.
+        Provides an administrative override to advance the status of a shipment.
+
+        Workflow:
+        1. Retrieves the shipment and verifies it exists.
+        2. Validates the status transition against a sequential state machine:
+           PENDING -> SENT -> DELIVERED.
+        3. Updates the shipment's status field.
+        4. Logs the transition in the audit history with a specialized admin reason.
+        5. Persists the changes and returns the updated shipment details.
+
+        Args:
+            shipment_id: The unique identifier of the shipment.
+            dto: Data transfer object containing the target status.
+
+        Returns:
+            ShipmentResponseDTO with the updated status.
+
+        Raises:
+            HTTPException:
+                - 404: If the shipment is not found.
+                - 400: If the status transition is invalid or out of sequence.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
@@ -478,11 +521,10 @@ class ShipmentService:
         if old_status == new_status:
              return ShipmentResponseDTO.model_validate(shipment)
 
-        # STATE MACHINE VALIDATION
         valid_transitions = {
             ShippingStatus.PENDING: [ShippingStatus.SENT],
             ShippingStatus.SENT: [ShippingStatus.DELIVERED],
-            ShippingStatus.DELIVERED: [] # Final state
+            ShippingStatus.DELIVERED: [] 
         }
 
         if new_status not in valid_transitions.get(old_status, []):
@@ -494,7 +536,6 @@ class ShipmentService:
 
         shipment.shipping_status = new_status
         
-        # Always log admin changes
         await self._shipment_repo.create_status_log(ShipmentStatusLog(
             shipment_id=shipment.id,
             old_status=old_status,
@@ -507,9 +548,17 @@ class ShipmentService:
 
     async def get_status_history(self, shipment_id: uuid.UUID) -> list[ShipmentStatusLogResponseDTO]:
         """
-        Returns the full audit trail of status changes for a shipment.
+        Retrieves the complete audit trail of status changes for a specific shipment.
+
+        Args:
+            shipment_id: The unique identifier of the shipment.
+
+        Returns:
+            A list of ShipmentStatusLogResponseDTO objects representing the transition history.
+
+        Raises:
+            HTTPException: 404 if the shipment does not exist.
         """
-        # Verify existence
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
              raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
@@ -519,7 +568,10 @@ class ShipmentService:
 
     async def get_admin_stats(self) -> ShipmentAdminStatsDTO:
         """
-        Returns a high-level summary of the logistics operation.
+        Generates a high-level statistical summary of the global logistics operation.
+
+        Returns:
+            ShipmentAdminStatsDTO containing aggregated metrics like total shipments and status counts.
         """
         stats = await self._shipment_repo.get_admin_stats()
         return ShipmentAdminStatsDTO(**stats)
