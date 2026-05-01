@@ -255,7 +255,7 @@ class ShipmentService:
         if dto.product_quantity > 10:
             auto_discount = 5.0 if shipping_type == ShippingType.LAND else 3.0
 
-        final_discount_percentage = min(100.0, dto.discount_percentage + auto_discount)
+        final_discount_percentage = auto_discount
         base_price_with_extra = total_base_price + extra_fee
         total_price = base_price_with_extra - (base_price_with_extra * (final_discount_percentage / 100))
 
@@ -290,8 +290,10 @@ class ShipmentService:
 
         created_shipment = await self._shipment_repo.create(shipment)
         
+        # Prepare response with clear breakdown for the frontend
         response = ShipmentResponseDTO.model_validate(created_shipment)
-        response.applied_extra_fee = extra_fee
+        response.base_price = total_base_price # Pure base price (without extra fee)
+        response.applied_extra_fee = extra_fee # The bonus fee
         return response
 
     async def update(self, shipment_id: uuid.UUID, dto: ShipmentUpdateDTO) -> ShipmentResponseDTO:
