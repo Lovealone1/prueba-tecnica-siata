@@ -16,7 +16,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "app.v1_0.modules.auth.router",
-            "app.v1_0.modules.auth.dependencies"
+            "app.v1_0.modules.auth.dependencies",
+            "app.v1_0.middlewares.auth_middleware",
+            "app.v1_0.middlewares.role_middleware",
         ]
     )
     
