@@ -63,7 +63,7 @@ docker-compose.override.yml
 Thumbs.db
 
 # --- Alembic ---
-alembic.ini
+# alembic.ini (removido para permitir despliegue)
 alembic/versions/__pycache__/
 alembic/versions/*.pyc
 
