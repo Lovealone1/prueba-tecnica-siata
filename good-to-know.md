@@ -1,0 +1,1 @@
+Se dejará el usuario creado como admin por defecto para practicidad de la prueba tecnica

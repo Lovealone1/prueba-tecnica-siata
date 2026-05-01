@@ -1,6 +1,6 @@
 from dependency_injector import containers, providers
 from app.v1_0.v1_containers import APIContainer
-from app.storage import async_session
+from app.core import async_session
 
 class ApplicationContainer(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
