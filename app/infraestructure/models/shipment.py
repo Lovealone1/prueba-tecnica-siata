@@ -38,7 +38,7 @@ class Shipment(Base):
     dispatch_location: Mapped[str] = mapped_column(String(100), server_default='USA', default='USA', nullable=False)
     dispatch_continent: Mapped[str] = mapped_column(String(100), server_default='North America', default='North America', nullable=False)
     
-    guide_number: Mapped[str] = mapped_column(String(10), unique=True, index=True, nullable=False)
+    guide_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     vehicle_plate: Mapped[str | None] = mapped_column(String(6), nullable=True)
     fleet_number: Mapped[str | None] = mapped_column(String(8), nullable=True)
     
