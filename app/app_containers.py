@@ -17,8 +17,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         modules=[
             "app.v1_0.modules.auth.router",
             "app.v1_0.modules.auth.dependencies",
-            "app.v1_0.middlewares.auth_middleware",
-            "app.v1_0.middlewares.role_middleware",
+            "app.middlewares.auth",
+            "app.middlewares.roles",
+            "app.middlewares.audit",
         ]
     )
     
