@@ -6,6 +6,10 @@ from app.v1_0.modules.customer.repository import CustomerRepository
 from app.v1_0.modules.customer.service import CustomerService
 from app.v1_0.modules.product.repository import ProductRepository
 from app.v1_0.modules.product.service import ProductService
+from app.v1_0.modules.logistics.repository import WarehouseRepository, SeaportRepository
+from app.v1_0.modules.logistics.service import LogisticsNodeService
+from app.infraestructure.models.warehouse import Warehouse
+from app.infraestructure.models.seaport import Seaport
 
 
 class APIContainer(containers.DeclarativeContainer):
@@ -18,6 +22,8 @@ class APIContainer(containers.DeclarativeContainer):
             "app.v1_0.modules.auth.router",
             "app.v1_0.modules.customer.router",
             "app.v1_0.modules.product.router",
+            "app.v1_0.modules.logistics.warehouse_router",
+            "app.v1_0.modules.logistics.seaport_router",
         ]
     )
     db_session = providers.Dependency()
@@ -65,4 +71,32 @@ class APIContainer(containers.DeclarativeContainer):
     product_service = providers.Singleton(
         ProductService,
         product_repository=product_repository,
+    )
+
+    # Logistics — Warehouse
+
+    warehouse_repository = providers.Factory(
+        WarehouseRepository,
+        db_maker=db_session,
+        model_class=providers.Object(Warehouse),
+    )
+
+    warehouse_service = providers.Singleton(
+        LogisticsNodeService,
+        repository=warehouse_repository,
+        model_class=providers.Object(Warehouse),
+    )
+
+    # Logistics — Seaport
+
+    seaport_repository = providers.Factory(
+        SeaportRepository,
+        db_maker=db_session,
+        model_class=providers.Object(Seaport),
+    )
+
+    seaport_service = providers.Singleton(
+        LogisticsNodeService,
+        repository=seaport_repository,
+        model_class=providers.Object(Seaport),
     )
