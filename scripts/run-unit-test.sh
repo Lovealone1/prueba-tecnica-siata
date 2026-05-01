@@ -17,25 +17,25 @@ to_nodeid() {
 
 case $# in
   0)
-    echo ">> Ejecutando TODOS los tests"
+    echo ">> Running all the tests"
     poetry run pytest
     ;;
 
   1)
     nodeid="$(to_nodeid "$1")"
-    echo ">> Ejecutando tests en: $nodeid"
+    echo ">> Running the tests in: $nodeid"
     poetry run pytest "$nodeid"
     ;;
 
   2)
     module_nodeid="$(to_nodeid "$1")"
     nodeid="${module_nodeid}::$2"
-    echo ">> Ejecutando test específico: $nodeid"
+    echo ">> Executing specific test: $nodeid"
     poetry run pytest "$nodeid"
     ;;
 
   *)
-    echo "Uso: $0 [modulo] [nombre_test]" >&2
+    echo "Usage: $0 [module] [test_name]" >&2
     exit 1
     ;;
 esac

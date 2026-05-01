@@ -15,14 +15,14 @@ async def init_redis_resource():
 class ApplicationContainer(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
-            "app.v1_0.modules.auth.router",
             "app.v1_0.modules.auth.dependencies",
             "app.middlewares.auth",
             "app.middlewares.roles",
             "app.middlewares.audit",
+            "app.v1_0.modules.auth.router",
+            "app.v1_0.modules.customer.router",
         ]
     )
-    
     db_session = providers.Object(async_session)
 
     redis_client = providers.Resource(init_redis_resource)
