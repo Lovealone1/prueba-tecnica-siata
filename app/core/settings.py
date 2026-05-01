@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     REDIS_TTL_SECONDS: int = 3600
     REDIS_ENABLED: bool = True
 
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
     @property
     def APP_ENV(self) -> str:
         return self.ENVIRONMENT

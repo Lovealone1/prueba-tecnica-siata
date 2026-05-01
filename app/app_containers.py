@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 from app.v1_0.v1_containers import APIContainer
 from app.core import async_session
 from app.infraestructure.redis import get_redis_client, close_redis_client, RedisCacheService
+from app.infraestructure.mail import MailService
 
 async def init_redis_resource():
     client = await get_redis_client()
@@ -24,6 +25,10 @@ class ApplicationContainer(containers.DeclarativeContainer):
     redis_cache_service = providers.Singleton(
         RedisCacheService,
         redis_client=redis_client
+    )
+
+    mail_service = providers.Singleton(
+        MailService
     )
 
     api_container = providers.Container(
