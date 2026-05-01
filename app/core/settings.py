@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     CORS_ORIGINS: str = "*"
 
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_DB: int = 0
+    REDIS_KEY_PREFIX: str = "app"
+    REDIS_TTL_SECONDS: int = 3600
+    REDIS_ENABLED: bool = True
+
     @property
     def APP_ENV(self) -> str:
         return self.ENVIRONMENT

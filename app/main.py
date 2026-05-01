@@ -20,6 +20,8 @@ async def lifespan(app: FastAPI):
     if isawaitable(ret):
         await ret
     logger.info(f"{settings.APP_NAME} starting in {settings.APP_ENV}")
+    logger.info(f"API running on http://localhost:{settings.PORT}{API_PREFIX}")
+    logger.info(f"Swagger docs running on http://localhost:{settings.PORT}{API_PREFIX}/docs")
     try:
         yield
     finally:
