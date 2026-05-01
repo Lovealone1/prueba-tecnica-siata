@@ -20,7 +20,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.core.settings import settings
 from app.v1_0.models.base import Base
-from app.storage.database import clean_url
+from app.core.database import clean_url
 
 target_metadata = Base.metadata
 

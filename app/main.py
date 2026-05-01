@@ -9,7 +9,7 @@ from app.core.settings import settings
 from app.core.logger import logger
 from app.v1_0.v1_router import v1_router
 from app.app_containers import ApplicationContainer
-from app.storage import async_session, dispose_engine
+from app.core import async_session, dispose_engine
 
 API_PREFIX = getattr(settings, "API_PREFIX", "/api")
 
