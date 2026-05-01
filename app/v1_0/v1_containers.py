@@ -4,6 +4,8 @@ from app.v1_0.modules.auth.repository import UserRepository
 from app.v1_0.modules.auth.otp import DevOtpSender, ProdOtpSender
 from app.v1_0.modules.customer.repository import CustomerRepository
 from app.v1_0.modules.customer.service import CustomerService
+from app.v1_0.modules.product.repository import ProductRepository
+from app.v1_0.modules.product.service import ProductService
 
 
 class APIContainer(containers.DeclarativeContainer):
@@ -15,6 +17,7 @@ class APIContainer(containers.DeclarativeContainer):
         modules=[
             "app.v1_0.modules.auth.router",
             "app.v1_0.modules.customer.router",
+            "app.v1_0.modules.product.router",
         ]
     )
     db_session = providers.Dependency()
@@ -40,9 +43,7 @@ class APIContainer(containers.DeclarativeContainer):
         otp_sender=otp_sender
     )
 
-    # ------------------------------------------------------------------
     # Customer
-    # ------------------------------------------------------------------
 
     customer_repository = providers.Factory(
         CustomerRepository,
@@ -52,4 +53,16 @@ class APIContainer(containers.DeclarativeContainer):
     customer_service = providers.Singleton(
         CustomerService,
         customer_repository=customer_repository,
+    )
+
+    # Product
+
+    product_repository = providers.Factory(
+        ProductRepository,
+        db_maker=db_session,
+    )
+
+    product_service = providers.Singleton(
+        ProductService,
+        product_repository=product_repository,
     )
