@@ -8,7 +8,7 @@ def get_otp_email_template(otp: str, intent: str) -> str:
     )
 
     # Format the OTP to have spaces between digits for better readability (e.g. "8 5 0 9 7 1")
-    formatted_otp = ' '.join(list(otp))
+    formatted_otp = ' '.join(list(str(otp)))
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -80,7 +80,7 @@ def get_otp_email_template(otp: str, intent: str) -> str:
       background-color: #fafafa;
       border: 1px solid #e4e4e7;
       border-radius: 12px;
-      padding: 32px 20px;
+      padding: 32px 10px;
       margin: 0 auto;
     }}
     .code-container .label {{
@@ -92,9 +92,9 @@ def get_otp_email_template(otp: str, intent: str) -> str:
       margin: 0 0 12px 0;
     }}
     .code-container .code {{
-      font-size: 42px;
+      font-size: 32px;
       font-weight: 800;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.05em;
       color: #18181b;
       margin: 0 0 12px 0;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
