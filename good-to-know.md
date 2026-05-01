@@ -18,3 +18,18 @@ Este enfoque es práctico para:
 El campo 'transport_mode' (LAND/MARITIME) es el enrutador principal para el flujo logístico. 
 Asegura que los productos estén correctamente asociados con 'Almacenes' o 'Puertos' en 
 módulos posteriores, cumpliendo con el requisito de gestión logística diferenciada.
+
+Los campos 'storage_capacity' y 'current_occupancy' se omitieron intencionadamente 
+de las entidades Warehouse y SeaPort por las siguientes razones:
+
+1. Los requisitos empresariales actuales 
+   se centran en el registro e identificación de los nodos logísticos en lugar 
+   de la gestión de inventarios o la optimización volumétrica.
+
+2. En un ecosistema logístico complejo, la 'Capacidad' es 
+   a menudo un valor dinámico calculado por un 'Servicio de Inventario' especializado 
+   en lugar de un atributo estático de la infraestructura física.
+
+3. Para garantizar una implementación CRUD robusta y limpia dentro del 
+   plazo de la prueba, el enfoque se centró en la integridad estructural y 
+   standardization of location data (City/Country/Address).
