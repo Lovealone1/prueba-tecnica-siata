@@ -22,7 +22,6 @@ class ShipmentCreateDTO(BaseModel):
     warehouse_id: Optional[uuid.UUID] = None
     seaport_id: Optional[uuid.UUID] = None
     product_quantity: int = Field(..., gt=0)
-    discount_percentage: float = Field(0.0, ge=0, le=100)
     dispatch_location: str = Field("USA", max_length=100)
     dispatch_continent: str = Field("North America", max_length=100)
     
