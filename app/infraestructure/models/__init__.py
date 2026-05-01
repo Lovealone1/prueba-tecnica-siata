@@ -4,6 +4,7 @@ from app.infraestructure.models.customer import Customer
 from app.infraestructure.models.product import Product, TransportMode, ProductSize
 from app.infraestructure.models.warehouse import Warehouse
 from app.infraestructure.models.seaport import Seaport
+from app.infraestructure.models.shipment import Shipment, ShippingStatus, ShippingType
 
 __all__ = [
     "Base", 
@@ -14,5 +15,8 @@ __all__ = [
     "TransportMode", 
     "ProductSize",
     "Warehouse",
-    "Seaport"
+    "Seaport",
+    "Shipment",
+    "ShippingStatus",
+    "ShippingType"
 ]
