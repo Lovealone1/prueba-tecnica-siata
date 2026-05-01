@@ -148,6 +148,9 @@ class AuthService:
         user.last_login_at = datetime.now(timezone.utc)
         await self.user_repository.commit_user(user)
 
+        # Cache user profile for high-performance retrieval in dependencies
+        await self._cache_user_profile(user)
+
         sid = str(uuid.uuid4())
         session_key = f"session:{user.id}:{sid}"
         session_data = {
@@ -231,4 +234,25 @@ class AuthService:
         for sid in sids:
             await self.redis.delete(f"session:{user_id}:{sid}")
         await self.redis.delete(f"user_sessions:{user_id}")
+        await self.redis.delete(f"user:profile:{user_id}")
+
+    async def _cache_user_profile(self, user: User) -> None:
+        """
+        Stores a serialized version of the user profile in Redis.
+        Used to avoid redundant database lookups during request authentication.
+        """
+        profile_data = {
+            "id": str(user.id),
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_number": user.phone_number,
+            "is_active": user.is_active,
+            "global_role": user.global_role.value if hasattr(user.global_role, 'value') else user.global_role
+        }
+        await self.redis.set(
+            f"user:profile:{user.id}", 
+            profile_data, 
+            ttl_seconds=3600 # Cache for 1 hour
+        )
 

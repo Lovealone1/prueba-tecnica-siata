@@ -39,11 +39,38 @@ async def get_current_user(
     if not session_data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked or expired")
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    # Attempt to retrieve user profile from cache (Production Optimization)
+    cached_user = await redis_cache.get(f"user:profile:{user_id}")
+    if cached_user:
+        # Reconstruct detached User object from cache data
+        user = User(
+            id=uuid.UUID(cached_user["id"]),
+            email=cached_user["email"],
+            first_name=cached_user["first_name"],
+            last_name=cached_user["last_name"],
+            phone_number=cached_user.get("phone_number"),
+            is_active=cached_user["is_active"],
+            global_role=cached_user["global_role"]
+        )
+    else:
+        # Cache miss: fetch from DB and populate cache
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+            
+        # Repopulate cache for next request
+        profile_data = {
+            "id": str(user.id),
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_number": user.phone_number,
+            "is_active": user.is_active,
+            "global_role": user.global_role.value if hasattr(user.global_role, 'value') else user.global_role
+        }
+        await redis_cache.set(f"user:profile:{user.id}", profile_data, ttl_seconds=3600)
         
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
