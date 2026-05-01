@@ -28,7 +28,7 @@ class MailService:
                 port=self.port,
                 username=self.user,
                 password=self.password,
-                start_tls=self.port == 587,
+                start_tls=self.port != 465,
                 use_tls=self.port == 465,
             )
             logger.info(f'Email sent successfully to {to} with subject "{subject}"')
