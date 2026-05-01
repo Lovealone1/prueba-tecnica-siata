@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""
 
+    JWT_SECRET: str = "super_secret_jwt_key_please_change"
+    JWT_EXPIRES_IN_MINUTES: int = 10080  # 1 week in minutes
+
     @property
     def APP_ENV(self) -> str:
         return self.ENVIRONMENT
