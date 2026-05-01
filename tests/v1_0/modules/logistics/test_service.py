@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 from fastapi import HTTPException
 
 from app.v1_0.modules.logistics.service import LogisticsNodeService
-from app.v1_0.modules.logistics.domain import IWarehouseRepository
 from app.infraestructure.models.warehouse import Warehouse
 from app.v1_0.modules.logistics.dto.schemas import LogisticsNodeCreateDTO, LogisticsNodeUpdateDTO
 from app.core.context import audit_context

@@ -4,7 +4,6 @@ from httpx import AsyncClient
 from unittest.mock import AsyncMock
 
 from app.main import app
-from app.v1_0.modules.customer.service import CustomerService
 from app.v1_0.modules.customer.dto.schemas import CustomerResponseDTO, CustomerListResponseDTO
 from app.infraestructure.models.user import User, GlobalRole
 

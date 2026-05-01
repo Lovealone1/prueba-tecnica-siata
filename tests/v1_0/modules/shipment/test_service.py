@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from fastapi import HTTPException
 from datetime import datetime, timezone
 
@@ -8,7 +8,7 @@ from app.v1_0.modules.shipment.service import ShipmentService
 from app.v1_0.modules.shipment.domain import IShipmentRepository
 from app.v1_0.modules.customer.domain import ICustomerRepository
 from app.v1_0.modules.product.domain import IProductRepository
-from app.v1_0.modules.logistics.domain import IWarehouseRepository, ISeaportRepository, ILogisticsNodeRepository
+from app.v1_0.modules.logistics.domain import ILogisticsNodeRepository
 from app.infraestructure.redis.redis_cache_service import RedisCacheService
 
 from app.v1_0.modules.shipment.dto.schemas import ShipmentCreateDTO, ShipmentUpdateDTO, ShippingStatus
