@@ -5,6 +5,8 @@ from typing import cast, List
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.v1_0.middlewares import RequestInfoMiddleware
+
 from app.core.settings import settings
 from app.core.logger import logger
 from app.v1_0.v1_router import v1_router
@@ -20,6 +22,8 @@ async def lifespan(app: FastAPI):
     if isawaitable(ret):
         await ret
     logger.info(f"{settings.APP_NAME} starting in {settings.APP_ENV}")
+    logger.info(f"API running on http://localhost:{settings.PORT}{API_PREFIX}")
+    logger.info(f"Swagger docs running on http://localhost:{settings.PORT}{API_PREFIX}/docs")
     try:
         yield
     finally:
@@ -57,6 +61,9 @@ def create_app() -> FastAPI:
     if "*" in origins:
         allow_credentials = False
 
+    # NOTE: Starlette applies middlewares in reverse registration order.
+    # RequestInfoMiddleware is registered last so it runs first (outermost layer),
+    # capturing the full request-to-response time including CORS processing.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -64,6 +71,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RequestInfoMiddleware)
 
     base_router = APIRouter(prefix=API_PREFIX)
     base_router.include_router(v1_router)

@@ -13,6 +13,23 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     CORS_ORIGINS: str = "*"
 
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_DB: int = 0
+    REDIS_KEY_PREFIX: str = "app"
+    REDIS_TTL_SECONDS: int = 3600
+    REDIS_ENABLED: bool = True
+
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
+    JWT_SECRET: str = "super_secret_jwt_key_please_change"
+    JWT_EXPIRES_IN_MINUTES: int = 10080  # 1 week in minutes
+
     @property
     def APP_ENV(self) -> str:
         return self.ENVIRONMENT
