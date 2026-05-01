@@ -5,7 +5,7 @@ from datetime import datetime, time, date, timezone
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus
+from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus, ShipmentStatusLog
 from app.infraestructure.models.warehouse import Warehouse
 from app.infraestructure.models.seaport import Seaport
 from app.v1_0.modules.shipment.domain import IShipmentRepository
@@ -22,6 +22,7 @@ class ShipmentRepository(IShipmentRepository):
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ):
@@ -33,6 +34,8 @@ class ShipmentRepository(IShipmentRepository):
             query = query.where(Shipment.shipping_type == shipping_type)
         if shipping_status:
             query = query.where(Shipment.shipping_status == shipping_status)
+        if guide_number:
+            query = query.where(Shipment.guide_number.ilike(f"%{guide_number}%"))
         
         if destination_country:
             # We need to join with Warehouse and Seaport to filter by their country
@@ -67,6 +70,7 @@ class ShipmentRepository(IShipmentRepository):
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> List[Shipment]:
@@ -74,7 +78,7 @@ class ShipmentRepository(IShipmentRepository):
             query = select(Shipment)
             query = self._apply_filters(
                 query, customer_id, dispatch_location, destination_country, 
-                shipping_type, shipping_status, start_date, end_date
+                shipping_type, shipping_status, guide_number, start_date, end_date
             )
             query = query.order_by(Shipment.created_at.desc()).offset(skip).limit(limit)
             result = await session.execute(query)
@@ -87,6 +91,7 @@ class ShipmentRepository(IShipmentRepository):
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> int:
@@ -94,7 +99,7 @@ class ShipmentRepository(IShipmentRepository):
             query = select(func.count(Shipment.id))
             query = self._apply_filters(
                 query, customer_id, dispatch_location, destination_country, 
-                shipping_type, shipping_status, start_date, end_date
+                shipping_type, shipping_status, guide_number, start_date, end_date
             )
             result = await session.execute(query)
             return result.scalar() or 0
@@ -129,3 +134,47 @@ class ShipmentRepository(IShipmentRepository):
             if existing:
                 await session.delete(existing)
                 await session.commit()
+
+    async def create_status_log(self, log: ShipmentStatusLog) -> ShipmentStatusLog:
+        async with self.db_maker() as session:
+            session.add(log)
+            await session.commit()
+            await session.refresh(log)
+            return log
+
+    async def get_status_history(self, shipment_id: uuid.UUID) -> List[ShipmentStatusLog]:
+        async with self.db_maker() as session:
+            query = select(ShipmentStatusLog).where(ShipmentStatusLog.shipment_id == shipment_id).order_by(ShipmentStatusLog.created_at.desc())
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    async def get_admin_stats(self) -> dict:
+        async with self.db_maker() as session:
+            # 1. Basic counts
+            total_query = select(func.count(Shipment.id))
+            revenue_query = select(func.sum(Shipment.total_price))
+            status_query = select(Shipment.shipping_status, func.count(Shipment.id)).group_by(Shipment.shipping_status)
+            
+            total_res = await session.execute(total_query)
+            revenue_res = await session.execute(revenue_query)
+            status_res = await session.execute(status_query)
+            
+            # 2. Top destinations (Country from Warehouse or Seaport)
+            # This is complex because country is in joined tables. 
+            # We'll simplify for now to top dispatch locations if destination country is too slow,
+            # but let's try the destination join.
+            dest_query = select(
+                func.coalesce(Warehouse.country, Seaport.country).label("country"), 
+                func.count(Shipment.id)
+            ).outerjoin(Warehouse, Shipment.warehouse_id == Warehouse.id)\
+             .outerjoin(Seaport, Shipment.seaport_id == Seaport.id)\
+             .group_by("country").order_by(func.count(Shipment.id).desc()).limit(5)
+            
+            dest_res = await session.execute(dest_query)
+            
+            return {
+                "total_shipments": total_res.scalar() or 0,
+                "total_revenue": float(revenue_res.scalar() or 0.0),
+                "status_counts": {row[0].value: row[1] for row in status_res.all()},
+                "top_destinations": [{"country": row[0], "count": row[1]} for row in dest_res.all()]
+            }

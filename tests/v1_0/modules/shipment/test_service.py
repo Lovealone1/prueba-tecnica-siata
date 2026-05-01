@@ -138,7 +138,7 @@ async def test_update_shipment_locked_if_not_pending(service, mock_shipment_repo
     )
     mock_shipment_repo.get_by_id.return_value = existing_shipment
     
-    payload = ShipmentUpdateDTO(shipping_status=ShippingStatus.DELIVERED)
+    payload = ShipmentUpdateDTO(product_quantity=100)
     
     # Execute & Assert
     with pytest.raises(HTTPException) as exc_info:
@@ -146,6 +146,42 @@ async def test_update_shipment_locked_if_not_pending(service, mock_shipment_repo
     
     assert exc_info.value.status_code == 400
     assert "PENDING" in exc_info.value.detail
+
+async def test_admin_update_status_success(service, mock_shipment_repo):
+    # Setup
+    shipment_id = uuid.uuid4()
+    now = datetime.now(timezone.utc)
+    existing_shipment = Shipment(
+        id=shipment_id,
+        customer_id=uuid.uuid4(),
+        product_id=uuid.uuid4(),
+        product_quantity=5,
+        shipping_type=ShippingType.LAND,
+        base_price=100.0,
+        discount_percentage=0.0,
+        total_price=100.0,
+        dispatch_location="USA",
+        dispatch_continent="North America",
+        guide_number="ADMIN_OVERRIDE_TEST",
+        registry_date=now,
+        shipping_date=now,
+        shipping_status=ShippingStatus.SENT,
+        created_at=now,
+        updated_at=now
+    )
+    mock_shipment_repo.get_by_id.return_value = existing_shipment
+    mock_shipment_repo.update.side_effect = lambda s: s
+    
+    from app.v1_0.modules.shipment.dto.schemas import ShipmentAdminUpdateDTO
+    payload = ShipmentAdminUpdateDTO(shipping_status=ShippingStatus.DELIVERED)
+    
+    # Execute
+    result = await service.admin_update_status(shipment_id, payload)
+    
+    # Assert
+    assert result.shipping_status == ShippingStatus.DELIVERED
+    mock_shipment_repo.create_status_log.assert_called_once()
+    mock_shipment_repo.update.assert_called_once()
 
 async def test_create_shipment_invalid_infrastructure_mismatch(service, mock_customer_repo, mock_product_repo, mock_warehouse_repo):
     # Setup
