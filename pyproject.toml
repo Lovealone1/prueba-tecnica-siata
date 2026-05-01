@@ -20,11 +20,14 @@ dependencies = [
     "alembic (>=1.18.4,<2.0.0)",
     "redis (>=7.4.0,<8.0.0)",
     "aiosmtplib (>=5.1.0,<6.0.0)",
-    "pyjwt (>=2.12.1,<3.0.0)"
+    "pyjwt (>=2.12.1,<3.0.0)",
+    "tzdata"
 ]
 
 [tool.poetry]
-packages = [{include = "prueba_tecnica_siata", from = "src"}]
+package-mode = false
+# Project is structured with app/ in the root
+
 
 
 [tool.poetry.group.dev.dependencies]

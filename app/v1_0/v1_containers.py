@@ -8,6 +8,8 @@ from app.v1_0.modules.product.repository import ProductRepository
 from app.v1_0.modules.product.service import ProductService
 from app.v1_0.modules.logistics.repository import WarehouseRepository, SeaportRepository
 from app.v1_0.modules.logistics.service import LogisticsNodeService
+from app.v1_0.modules.shipment.repository import ShipmentRepository
+from app.v1_0.modules.shipment.service import ShipmentService
 from app.infraestructure.models.warehouse import Warehouse
 from app.infraestructure.models.seaport import Seaport
 
@@ -24,6 +26,7 @@ class APIContainer(containers.DeclarativeContainer):
             "app.v1_0.modules.product.router",
             "app.v1_0.modules.logistics.warehouse_router",
             "app.v1_0.modules.logistics.seaport_router",
+            "app.v1_0.modules.shipment.router",
         ]
     )
     db_session = providers.Dependency()
@@ -99,4 +102,21 @@ class APIContainer(containers.DeclarativeContainer):
         LogisticsNodeService,
         repository=seaport_repository,
         model_class=providers.Object(Seaport),
+    )
+
+    # Shipment
+
+    shipment_repository = providers.Factory(
+        ShipmentRepository,
+        db_maker=db_session,
+    )
+
+    shipment_service = providers.Singleton(
+        ShipmentService,
+        shipment_repo=shipment_repository,
+        customer_repo=customer_repository,
+        product_repo=product_repository,
+        warehouse_repo=warehouse_repository,
+        seaport_repo=seaport_repository,
+        redis_cache=redis_cache_service,
     )

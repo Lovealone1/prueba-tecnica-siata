@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import validates
 
-from app.core.utils.location_helper import LocationHelper
+from app.utils.location_helper import LocationHelper
 from .base import Base
 
 class Seaport(Base):

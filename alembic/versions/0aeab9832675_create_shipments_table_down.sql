@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS shipments CASCADE;
+DROP TYPE IF EXISTS shipping_type_enum CASCADE;
+DROP TYPE IF EXISTS shipping_status_enum CASCADE;
