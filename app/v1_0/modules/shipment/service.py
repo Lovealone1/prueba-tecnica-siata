@@ -6,8 +6,12 @@ from typing import Optional
 from fastapi import HTTPException, status
 
 from app.v1_0.modules.shipment.domain import IShipmentRepository
-from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus
-from app.v1_0.modules.shipment.dto.schemas import ShipmentCreateDTO, ShipmentUpdateDTO, ShipmentListResponseDTO, ShipmentResponseDTO
+from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus, ShipmentStatusLog
+from app.v1_0.modules.shipment.dto.schemas import (
+    ShipmentCreateDTO, ShipmentUpdateDTO, ShipmentListResponseDTO, 
+    ShipmentResponseDTO, ShipmentStatusLogResponseDTO, ShipmentAdminUpdateDTO, 
+    ShipmentAdminStatsDTO
+)
 from app.utils.shipment_calculator import ShipmentCalculator
 from app.utils.shipment_helpers import generate_vehicle_plate, generate_fleet_number
 
@@ -58,6 +62,7 @@ class ShipmentService:
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> ShipmentListResponseDTO:
@@ -86,6 +91,7 @@ class ShipmentService:
             destination_country=destination_country,
             shipping_type=shipping_type,
             shipping_status=shipping_status,
+            guide_number=guide_number,
             start_date=start_date,
             end_date=end_date
         )
@@ -95,6 +101,7 @@ class ShipmentService:
             destination_country=destination_country,
             shipping_type=shipping_type,
             shipping_status=shipping_status,
+            guide_number=guide_number,
             start_date=start_date,
             end_date=end_date
         )
@@ -298,18 +305,8 @@ class ShipmentService:
 
     async def update(self, shipment_id: uuid.UUID, dto: ShipmentUpdateDTO) -> ShipmentResponseDTO:
         """
-        Updates the status or identification of an existing shipment.
-        Only allowed if the shipment is currently in PENDING status.
-        
-        Args:
-            shipment_id: UUID of the shipment to update.
-            dto: Data to update.
-            
-        Returns:
-            ShipmentResponseDTO with the updated shipment.
-            
-        Raises:
-            HTTPException: If shipment not found or if status is not PENDING.
+        Updates an existing shipment. Allows correcting order details (product, quantity, destination)
+        only if the shipment is currently in PENDING status. Recalculates pricing and logistics.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
@@ -322,9 +319,89 @@ class ShipmentService:
                 detail=f"Only shipments in PENDING status can be modified. Current status: {shipment.shipping_status}"
             )
 
-        if dto.shipping_status is not None:
-            shipment.shipping_status = dto.shipping_status
+        # 1. Detect changes that require recalculation
+        recalculate = False
         
+        if dto.product_id is not None and dto.product_id != shipment.product_id:
+            product = await self._product_repo.get_by_id(dto.product_id)
+            if not product:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="New product not found.")
+            shipment.product_id = dto.product_id
+            recalculate = True
+        else:
+            product = await self._product_repo.get_by_id(shipment.product_id)
+
+        if dto.product_quantity is not None and dto.product_quantity != shipment.product_quantity:
+            shipment.product_quantity = dto.product_quantity
+            recalculate = True
+
+        # Handle destination changes
+        new_warehouse_id = dto.warehouse_id if dto.warehouse_id is not None else (shipment.warehouse_id if not dto.seaport_id else None)
+        new_seaport_id = dto.seaport_id if dto.seaport_id is not None else (shipment.seaport_id if not dto.warehouse_id else None)
+
+        if new_warehouse_id != shipment.warehouse_id or new_seaport_id != shipment.seaport_id:
+            shipment.warehouse_id = new_warehouse_id
+            shipment.seaport_id = new_seaport_id
+            recalculate = True
+
+        # 2. Re-run Logistics and Pricing calculation if needed
+        extra_fee = 0.0
+        total_base_price = shipment.base_price # Default to existing if no recalculation
+        
+        if recalculate:
+            dest_country = ""
+            dest_continent = ""
+            
+            if shipment.warehouse_id:
+                node = await self._warehouse_repo.get_by_id(shipment.warehouse_id)
+                if not node: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Warehouse not found.")
+                dest_country, dest_continent = node.country, node.continent
+            elif shipment.seaport_id:
+                node = await self._seaport_repo.get_by_id(shipment.seaport_id)
+                if not node: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Seaport not found.")
+                dest_country, dest_continent = node.country, node.continent
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Shipment must have a warehouse_id or seaport_id.")
+
+            # Calculate new logistics
+            shipping_type, eta, total_base_price, extra_fee = ShipmentCalculator.calculate(
+                dispatch_country=shipment.dispatch_location,
+                dispatch_continent=shipment.dispatch_continent,
+                dest_country=dest_country,
+                dest_continent=dest_continent,
+                product_size=product.size,
+                quantity=shipment.product_quantity,
+                registry_date=shipment.registry_date
+            )
+
+            # Validation: Mismatch check
+            if shipping_type == ShippingType.LAND and not shipment.warehouse_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Route requires a warehouse_id.")
+            if shipping_type == ShippingType.MARITIME and not shipment.seaport_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Route requires a seaport_id.")
+
+            # Update pricing fields
+            auto_discount = 5.0 if shipping_type == ShippingType.LAND else 3.0
+            final_discount_percentage = auto_discount if shipment.product_quantity > 10 else 0.0
+            
+            base_price_with_extra = total_base_price + extra_fee
+            total_price = base_price_with_extra - (base_price_with_extra * (final_discount_percentage / 100))
+
+            shipment.shipping_type = shipping_type
+            shipment.shipping_date = eta
+            shipment.base_price = base_price_with_extra
+            shipment.discount_percentage = final_discount_percentage
+            shipment.total_price = total_price
+            
+            # If shipping type changed, we might need to reset vehicle/fleet
+            if shipping_type == ShippingType.LAND:
+                shipment.seaport_id = None
+                shipment.fleet_number = None
+            else:
+                shipment.warehouse_id = None
+                shipment.vehicle_plate = None
+
+        # 3. Manual vehicle/fleet updates (optional)
         if dto.vehicle_plate is not None:
             if shipment.shipping_type != ShippingType.LAND:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="vehicle_plate is only valid for LAND shipping.")
@@ -336,16 +413,113 @@ class ShipmentService:
             shipment.fleet_number = dto.fleet_number
 
         updated_shipment = await self._shipment_repo.update(shipment)
-        return ShipmentResponseDTO.model_validate(updated_shipment)
+        
+        # Prepare response
+        response = ShipmentResponseDTO.model_validate(updated_shipment)
+        
+        # We need the destination info for the breakdown calculation
+        if not recalculate:
+            dest_country = ""
+            dest_continent = ""
+            if shipment.warehouse_id:
+                node = await self._warehouse_repo.get_by_id(shipment.warehouse_id)
+                dest_country, dest_continent = node.country, node.continent
+            elif shipment.seaport_id:
+                node = await self._seaport_repo.get_by_id(shipment.seaport_id)
+                dest_country, dest_continent = node.country, node.continent
+
+            _, _, t_base, e_fee = ShipmentCalculator.calculate(
+                dispatch_country=shipment.dispatch_location,
+                dispatch_continent=shipment.dispatch_continent,
+                dest_country=dest_country,
+                dest_continent=dest_continent,
+                product_size=product.size,
+                quantity=shipment.product_quantity,
+                registry_date=shipment.registry_date
+            )
+            response.base_price = t_base
+            response.applied_extra_fee = e_fee
+        else:
+            response.base_price = total_base_price
+            response.applied_extra_fee = extra_fee
+            
+        return response
 
     async def delete(self, shipment_id: uuid.UUID) -> None:
         """
-        Deletes a shipment record.
-        
-        Args:
-            shipment_id: UUID of the shipment to delete.
+        Deletes a shipment record. Only allowed if PENDING.
         """
         shipment = await self._shipment_repo.get_by_id(shipment_id)
         if not shipment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
+        
+        if shipment.shipping_status != ShippingStatus.PENDING:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only shipments in PENDING status can be deleted."
+            )
+            
         await self._shipment_repo.delete(shipment)
+
+    # --- ADMIN METHODS ---
+
+    async def admin_update_status(self, shipment_id: uuid.UUID, dto: ShipmentAdminUpdateDTO) -> ShipmentResponseDTO:
+        """
+        Admin-only status update. Enforces sequential transitions:
+        PENDING -> SENT -> DELIVERED.
+        """
+        shipment = await self._shipment_repo.get_by_id(shipment_id)
+        if not shipment:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
+
+        old_status = shipment.shipping_status
+        new_status = dto.shipping_status
+
+        if old_status == new_status:
+             return ShipmentResponseDTO.model_validate(shipment)
+
+        # STATE MACHINE VALIDATION
+        valid_transitions = {
+            ShippingStatus.PENDING: [ShippingStatus.SENT],
+            ShippingStatus.SENT: [ShippingStatus.DELIVERED],
+            ShippingStatus.DELIVERED: [] # Final state
+        }
+
+        if new_status not in valid_transitions.get(old_status, []):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status transition. Cannot move from {old_status} to {new_status}. "
+                       f"Sequential flow required: PENDING -> SENT -> DELIVERED."
+            )
+
+        shipment.shipping_status = new_status
+        
+        # Always log admin changes
+        await self._shipment_repo.create_status_log(ShipmentStatusLog(
+            shipment_id=shipment.id,
+            old_status=old_status,
+            new_status=new_status,
+            reason="ADMIN OVERRIDE: Manual status management by logistics administrator."
+        ))
+
+        updated_shipment = await self._shipment_repo.update(shipment)
+        return ShipmentResponseDTO.model_validate(updated_shipment)
+
+    async def get_status_history(self, shipment_id: uuid.UUID) -> list[ShipmentStatusLogResponseDTO]:
+        """
+        Returns the full audit trail of status changes for a shipment.
+        """
+        # Verify existence
+        shipment = await self._shipment_repo.get_by_id(shipment_id)
+        if not shipment:
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipment not found.")
+             
+        logs = await self._shipment_repo.get_status_history(shipment_id)
+        return [ShipmentStatusLogResponseDTO.model_validate(log) for log in logs]
+
+    async def get_admin_stats(self) -> ShipmentAdminStatsDTO:
+        """
+        Returns a high-level summary of the logistics operation.
+        """
+        stats = await self._shipment_repo.get_admin_stats()
+        return ShipmentAdminStatsDTO(**stats)

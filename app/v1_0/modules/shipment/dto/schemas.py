@@ -46,10 +46,24 @@ class ShipmentCreateDTO(BaseModel):
 
 
 class ShipmentUpdateDTO(BaseModel):
-    """Payload to update a shipment, for tracking lifecycle and manual assignments."""
-    shipping_status: Optional[ShippingStatus] = Field(None, description="Allows for tracking the shipment lifecycle.")
-    vehicle_plate: Optional[str] = Field(None, description="Manual assignment. Format: AAA123.")
-    fleet_number: Optional[str] = Field(None, description="Manual assignment. Format: AAA1234A.")
+    """Payload to update a shipment, allowing for corrections while in PENDING status."""
+    product_id: Optional[uuid.UUID] = Field(None, description="New product ID if you wish to change the item.")
+    product_quantity: Optional[int] = Field(None, gt=0, description="New quantity. Will trigger pricing and discount recalculation.")
+    warehouse_id: Optional[uuid.UUID] = Field(None, description="New warehouse ID for LAND shipping destination.")
+    seaport_id: Optional[uuid.UUID] = Field(None, description="New seaport ID for MARITIME shipping destination.")
+    
+    vehicle_plate: Optional[str] = Field(None, description="Optional manual vehicle assignment (AAA123).")
+    fleet_number: Optional[str] = Field(None, description="Optional manual fleet assignment (AAA1234A).")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "product_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "product_quantity": 20,
+                "warehouse_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            }
+        }
+    }
 
     @field_validator('vehicle_plate')
     @classmethod
@@ -99,3 +113,26 @@ class ShipmentListResponseDTO(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class ShipmentStatusLogResponseDTO(BaseModel):
+    id: uuid.UUID
+    shipment_id: uuid.UUID
+    old_status: Optional[str]
+    new_status: str
+    reason: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ShipmentAdminUpdateDTO(BaseModel):
+    shipping_status: ShippingStatus
+
+
+class ShipmentAdminStatsDTO(BaseModel):
+    total_shipments: int
+    total_revenue: float
+    status_counts: dict[str, int]
+    top_destinations: list[dict[str, int | str]]
+

@@ -3,9 +3,9 @@ from typing import Optional, List
 from datetime import date
 from abc import ABC, abstractmethod
 
-from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus
+from app.infraestructure.models.shipment import Shipment, ShippingType, ShippingStatus, ShipmentStatusLog
 
-__all__ = ["Shipment", "IShipmentRepository"]
+__all__ = ["Shipment", "IShipmentRepository", "ShipmentStatusLog"]
 
 
 class IShipmentRepository(ABC):
@@ -21,6 +21,7 @@ class IShipmentRepository(ABC):
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> List[Shipment]:
@@ -34,6 +35,7 @@ class IShipmentRepository(ABC):
         destination_country: Optional[str] = None,
         shipping_type: Optional[ShippingType] = None,
         shipping_status: Optional[ShippingStatus] = None,
+        guide_number: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> int:
@@ -57,4 +59,16 @@ class IShipmentRepository(ABC):
 
     @abstractmethod
     async def delete(self, shipment: Shipment) -> None:
+        ...
+
+    @abstractmethod
+    async def create_status_log(self, log: ShipmentStatusLog) -> ShipmentStatusLog:
+        ...
+
+    @abstractmethod
+    async def get_status_history(self, shipment_id: uuid.UUID) -> List[ShipmentStatusLog]:
+        ...
+
+    @abstractmethod
+    async def get_admin_stats(self) -> dict:
         ...

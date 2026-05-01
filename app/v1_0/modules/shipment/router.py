@@ -12,6 +12,9 @@ from app.v1_0.modules.shipment.dto.schemas import (
     ShipmentUpdateDTO,
     ShipmentResponseDTO,
     ShipmentListResponseDTO,
+    ShipmentStatusLogResponseDTO,
+    ShipmentAdminUpdateDTO,
+    ShipmentAdminStatsDTO
 )
 from app.middlewares.auth import require_authenticated
 from app.middlewares.roles import require_roles
@@ -50,6 +53,7 @@ async def list_shipments(
     destination_country: Optional[str] = Query(None),
     shipping_type: Optional[ShippingType] = Query(None),
     shipping_status: Optional[ShippingStatus] = Query(None),
+    guide_number: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
@@ -62,6 +66,7 @@ async def list_shipments(
         destination_country=destination_country,
         shipping_type=shipping_type,
         shipping_status=shipping_status,
+        guide_number=guide_number,
         start_date=start_date,
         end_date=end_date
     )
@@ -107,3 +112,47 @@ async def delete_shipment(
     shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
 ):
     await shipment_service.delete(shipment_id)
+
+# --- ADMIN ENDPOINTS ---
+
+@router.get(
+    "/admin/stats",
+    response_model=ShipmentAdminStatsDTO,
+    status_code=status.HTTP_200_OK,
+    summary="[ADMIN] Get logistics statistics",
+    dependencies=[Depends(require_roles(GlobalRole.ADMIN))]
+)
+@inject
+async def get_admin_stats(
+    shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
+):
+    return await shipment_service.get_admin_stats()
+
+@router.get(
+    "/admin/{shipment_id}/history",
+    response_model=list[ShipmentStatusLogResponseDTO],
+    status_code=status.HTTP_200_OK,
+    summary="[ADMIN] Get status history for a shipment",
+    dependencies=[Depends(require_roles(GlobalRole.ADMIN))]
+)
+@inject
+async def get_shipment_history(
+    shipment_id: uuid.UUID,
+    shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
+):
+    return await shipment_service.get_status_history(shipment_id)
+
+@router.patch(
+    "/admin/{shipment_id}/status",
+    response_model=ShipmentResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="[ADMIN] Override shipment status",
+    dependencies=[Depends(require_roles(GlobalRole.ADMIN))]
+)
+@inject
+async def admin_update_shipment_status(
+    shipment_id: uuid.UUID,
+    payload: ShipmentAdminUpdateDTO,
+    shipment_service: ShipmentService = Depends(Provide[APIContainer.shipment_service])
+):
+    return await shipment_service.admin_update_status(shipment_id, payload)

@@ -95,7 +95,7 @@ async def test_update_shipment_router(async_client: AsyncClient, sample_shipment
     with patch("app.v1_0.modules.shipment.service.ShipmentService.update", new_callable=AsyncMock) as mock_update:
         mock_update.return_value = sample_shipment_response
         
-        payload = {"shipping_status": "SENT"}
+        payload = {"product_quantity": 10}
         response = await async_client.patch(f"/api/v1/shipments/{shipment_id}", json=payload)
         
         assert response.status_code == 200
