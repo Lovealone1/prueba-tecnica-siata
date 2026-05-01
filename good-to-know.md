@@ -33,3 +33,5 @@ de las entidades Warehouse y SeaPort por las siguientes razones:
 3. Para garantizar una implementación CRUD robusta y limpia dentro del 
    plazo de la prueba, el enfoque se centró en la integridad estructural y 
    standardization of location data (City/Country/Address).
+
+Cada compañía posee sus propios estándares de codificación y reglas de linting/formateo (Black, Ruff, Pylint, etc.). Por el contexto y agilidad de esta prueba técnica, se ha optado por omitir la imposición de una configuración de análisis estático específica en el CI, favoreciendo la legibilidad natural y la consistencia manual del código.

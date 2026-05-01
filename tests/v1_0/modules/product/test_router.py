@@ -4,7 +4,6 @@ from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 
 from app.main import app
-from app.v1_0.modules.product.service import ProductService
 from app.v1_0.modules.product.dto.schemas import ProductResponseDTO, ProductListResponseDTO
 from app.infraestructure.models.user import User, GlobalRole
 from app.infraestructure.models.product import TransportMode, ProductSize
