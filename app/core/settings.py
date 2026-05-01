@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""
+    MAIL_SERVICE_KEY: str = ""
+    MAIL_SERVICE_URL: str = "https://api.brevo.com/v3/smtp/email"
 
     JWT_SECRET: str = "super_secret_jwt_key_please_change"
     JWT_EXPIRES_IN_MINUTES: int = 10080  # 1 week in minutes

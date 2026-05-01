@@ -4,6 +4,8 @@ import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
+from app.core.logger import logger
+
 from app.core.settings import settings
 from app.infraestructure.models.user import User, GlobalRole
 from app.infraestructure.redis.redis_cache_service import RedisCacheService
