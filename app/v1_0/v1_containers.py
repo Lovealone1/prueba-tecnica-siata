@@ -1,7 +1,7 @@
 from dependency_injector import containers, providers
-from app.v1_0.auth.service import AuthService
-from app.v1_0.auth.repository import UserRepository
-from app.v1_0.auth.otp import DevOtpSender, ProdOtpSender
+from app.v1_0.modules.auth.service import AuthService
+from app.v1_0.modules.auth.repository import UserRepository
+from app.v1_0.modules.auth.otp import DevOtpSender, ProdOtpSender
 
 class APIContainer(containers.DeclarativeContainer):
     """

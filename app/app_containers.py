@@ -15,8 +15,8 @@ async def init_redis_resource():
 class ApplicationContainer(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
-            "app.v1_0.auth.router",
-            "app.v1_0.auth.dependencies"
+            "app.v1_0.modules.auth.router",
+            "app.v1_0.modules.auth.dependencies"
         ]
     )
     
