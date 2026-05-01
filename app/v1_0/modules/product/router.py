@@ -36,7 +36,6 @@ async def list_products(
     _current_user: User = _allowed_roles,
     product_service: ProductService = Depends(Provide["product_service"]),
 ) -> ProductListResponseDTO:
-    """Returns a paginated list of products ordered from newest to oldest."""
     return await product_service.list_products(
         skip=skip, limit=limit, transport_mode=transport_mode, size=size
     )
@@ -54,7 +53,6 @@ async def get_product(
     _current_user: User = _allowed_roles,
     product_service: ProductService = Depends(Provide["product_service"]),
 ) -> ProductResponseDTO:
-    """Gets a specific product by its UUID. Returns 404 if not found."""
     return await product_service.get_product(product_id)
 
 
@@ -70,10 +68,6 @@ async def create_product(
     _current_user: User = _allowed_roles,
     product_service: ProductService = Depends(Provide["product_service"]),
 ) -> ProductResponseDTO:
-    """
-    Creates a new product.
-    The operation is logged at INFO level inside the service.
-    """
     return await product_service.create_product(payload)
 
 
@@ -96,10 +90,6 @@ async def update_product(
     ),
     product_service: ProductService = Depends(Provide["product_service"]),
 ) -> ProductResponseDTO:
-    """
-    Partially updates a product (PATCH).
-    The audit log interceptor registers the user, action, and field-level diff.
-    """
     return await product_service.update_product(product_id, payload)
 
 
@@ -116,8 +106,4 @@ async def delete_product(
     ),
     product_service: ProductService = Depends(Provide["product_service"]),
 ) -> None:
-    """
-    Deletes a product.
-    The audit log interceptor registers who performed the deletion.
-    """
     await product_service.delete_product(product_id)

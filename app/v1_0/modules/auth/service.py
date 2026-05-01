@@ -23,6 +23,14 @@ class AuthService:
         redis_cache: RedisCacheService,
         otp_sender: OtpSender
     ):
+        """
+        Initializes the service with security settings and required infrastructure.
+
+        Args:
+            user_repository: Data access layer for user persistence.
+            redis_cache: Redis service for OTP storage and session management.
+            otp_sender: Notification service for delivering OTPs.
+        """
         self.user_repository = user_repository
         self.redis = redis_cache
         self.otp_sender = otp_sender
@@ -33,8 +41,17 @@ class AuthService:
 
     async def request_otp(self, email: str, intent: str) -> None:
         """
-        Generates and sends a One-Time Password (OTP) to the specified email.
-        If a valid OTP already exists in the cache, it is reused.
+        Generates and dispatches a One-Time Password (OTP) for authentication.
+
+        Workflow:
+        1. Normalizes the email address.
+        2. Checks for an existing unexpired OTP in Redis to avoid redundant generation.
+        3. If none exists, generates a random 6-digit OTP and stores it with a TTL.
+        4. Invokes the OtpSender to deliver the code to the user.
+
+        Args:
+            email: The recipient's email address.
+            intent: The purpose of the OTP (e.g., LOGIN, REGISTER).
         """
         email = email.lower().strip()
         otp_key = f"otp:{email}"
@@ -60,10 +77,32 @@ class AuthService:
         user_agent: str = None
     ) -> dict:
         """
-        Verifies the provided OTP and completes the authentication flow.
-        For REGISTER intent, it creates the user profile.
-        For LOGIN intent, it validates the existing user.
-        On success, it creates a stateful session in Redis and returns a JWT.
+        Verifies an OTP and establishes an authenticated session.
+
+        Workflow:
+        1. Validates the existence and correctness of the OTP in Redis.
+        2. Enforces a maximum attempt limit to prevent brute-force attacks.
+        3. For REGISTER: Creates a new User profile with the provided metadata.
+        4. For LOGIN: Verifies the existing user is active and eligible to sign in.
+        5. Generates a unique Session ID (SID) and persists session metadata in Redis.
+        6. Issues a signed JWT containing user identity and session context.
+
+        Args:
+            email: The user's email address.
+            intent: The authentication purpose (LOGIN/REGISTER).
+            otp: The 6-digit code provided by the user.
+            registration_data: Metadata required only for new user registration.
+            ip: Client's IP address for session tracking.
+            user_agent: Client's browser/device info for session tracking.
+
+        Returns:
+            A dictionary containing the access token and user profile summary.
+
+        Raises:
+            HTTPException:
+                - 400: If OTP is invalid, expired, or failed attempts are exceeded.
+                - 404: If the user is not found during LOGIN.
+                - 403: If the user account is disabled.
         """
         email = email.lower().strip()
         otp_key = f"otp:{email}"
@@ -147,8 +186,18 @@ class AuthService:
 
     async def get_sessions(self, user_id: uuid.UUID) -> List[SessionResponse]:
         """
-        Retrieves all active sessions for a specific user from Redis.
-        Cleans up orphaned session identifiers if the session data is no longer present.
+        Retrieves all active authentication sessions for a specific user.
+
+        Workflow:
+        1. Queries Redis for the set of active session IDs associated with the user.
+        2. Iterates through each session ID to fetch detailed metadata.
+        3. Performs self-healing by removing session IDs from the set if their underlying data has expired.
+
+        Args:
+            user_id: The unique identifier of the user.
+
+        Returns:
+            A list of SessionResponse objects containing IP, user agent, and creation date.
         """
         sids = await self.redis.smembers(f"user_sessions:{user_id}")
         sessions = []
@@ -162,14 +211,21 @@ class AuthService:
 
     async def revoke_session(self, user_id: uuid.UUID, sid: str) -> None:
         """
-        Revokes a specific session for a user by deleting its data and removing it from the user's session set.
+        Invalidates a specific active session.
+
+        Args:
+            user_id: The unique identifier of the user.
+            sid: The unique identifier of the session to revoke.
         """
         await self.redis.delete(f"session:{user_id}:{sid}")
         await self.redis.srem(f"user_sessions:{user_id}", sid)
 
     async def revoke_all_sessions(self, user_id: uuid.UUID) -> None:
         """
-        Revokes all active sessions for a user, effectively logging them out from all devices.
+        Logs out a user from all devices by invalidating all active sessions.
+
+        Args:
+            user_id: The unique identifier of the user to log out globally.
         """
         sids = await self.redis.smembers(f"user_sessions:{user_id}")
         for sid in sids:

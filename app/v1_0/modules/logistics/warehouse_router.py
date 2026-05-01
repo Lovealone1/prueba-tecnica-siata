@@ -34,7 +34,6 @@ async def list_warehouses(
     _current_user: User = _allowed_roles,
     warehouse_service: LogisticsNodeService = Depends(Provide["warehouse_service"]),
 ) -> LogisticsNodeListResponseDTO:
-    """Returns a paginated list of warehouses."""
     return await warehouse_service.list_nodes(
         skip=skip, limit=limit, continent=continent, country=country
     )
@@ -52,7 +51,6 @@ async def get_warehouse(
     _current_user: User = _allowed_roles,
     warehouse_service: LogisticsNodeService = Depends(Provide["warehouse_service"]),
 ) -> LogisticsNodeResponseDTO:
-    """Gets a specific warehouse by its UUID."""
     return await warehouse_service.get_node(warehouse_id)
 
 
@@ -68,10 +66,6 @@ async def create_warehouse(
     _current_user: User = _allowed_roles,
     warehouse_service: LogisticsNodeService = Depends(Provide["warehouse_service"]),
 ) -> LogisticsNodeResponseDTO:
-    """
-    Creates a new warehouse.
-    The `continent` field is automatically derived from `country`.
-    """
     return await warehouse_service.create_node(payload)
 
 
@@ -94,11 +88,6 @@ async def update_warehouse(
     ),
     warehouse_service: LogisticsNodeService = Depends(Provide["warehouse_service"]),
 ) -> LogisticsNodeResponseDTO:
-    """
-    Partially updates a warehouse (PATCH).
-    If `country` is updated, `continent` is re-derived automatically.
-    The audit log interceptor registers who performed the operation.
-    """
     return await warehouse_service.update_node(warehouse_id, payload)
 
 
@@ -115,8 +104,4 @@ async def delete_warehouse(
     ),
     warehouse_service: LogisticsNodeService = Depends(Provide["warehouse_service"]),
 ) -> None:
-    """
-    Deletes a warehouse.
-    The audit log interceptor registers who performed the operation.
-    """
     await warehouse_service.delete_node(warehouse_id)

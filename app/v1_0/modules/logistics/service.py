@@ -35,12 +35,15 @@ class LogisticsNodeService:
         repository: ILogisticsNodeRepository,
         model_class: Type,
     ) -> None:
+        """
+        Initializes the generic service with a specific repository and model class.
+
+        Args:
+            repository: Data access layer for the specific node type (Warehouse/Seaport).
+            model_class: The SQLAlchemy model class (Warehouse or Seaport).
+        """
         self.repo = repository
         self.model_class = model_class
-
-    # ------------------------------------------------------------------ #
-    #  Read                                                                #
-    # ------------------------------------------------------------------ #
 
     async def list_nodes(
         self,
@@ -49,7 +52,18 @@ class LogisticsNodeService:
         continent: Optional[str] = None,
         country: Optional[str] = None,
     ) -> LogisticsNodeListResponseDTO:
-        """Returns a paginated list of logistics nodes."""
+        """
+        Retrieves a paginated and filtered list of logistics nodes.
+
+        Args:
+            skip: Number of records to skip for pagination.
+            limit: Maximum number of records to return.
+            continent: Optional filter by continent name.
+            country: Optional filter by country name.
+
+        Returns:
+            LogisticsNodeListResponseDTO containing the list of nodes and total count.
+        """
         nodes = await self.repo.get_all(
             skip=skip, limit=limit, continent=continent, country=country
         )
@@ -62,7 +76,18 @@ class LogisticsNodeService:
         )
 
     async def get_node(self, node_id: uuid.UUID) -> LogisticsNodeResponseDTO:
-        """Retrieves a logistics node by UUID. Raises 404 if not found."""
+        """
+        Retrieves a specific logistics node by its unique identifier.
+
+        Args:
+            node_id: The unique identifier of the node.
+
+        Returns:
+            LogisticsNodeResponseDTO containing the node details.
+
+        Raises:
+            HTTPException: 404 if the node is not found.
+        """
         node = await self.repo.get_by_id(node_id)
         if not node:
             raise HTTPException(
@@ -71,26 +96,28 @@ class LogisticsNodeService:
             )
         return LogisticsNodeResponseDTO.model_validate(node)
 
-    # ------------------------------------------------------------------ #
-    #  Write                                                               #
-    # ------------------------------------------------------------------ #
-
     async def create_node(
         self, payload: LogisticsNodeCreateDTO
     ) -> LogisticsNodeResponseDTO:
         """
-        Creates a new logistics node.
+        Creates a new logistics node and persists it to the system.
 
-        The ORM @validates("country") trigger fires automatically when
-        `country` is set, mapping the correct continent via LocationHelper.
-        No manual continent assignment is needed here.
+        Workflow:
+        1. Initializes the target entity class (Warehouse/Seaport) with provided data.
+        2. Relies on the ORM's @validates("country") trigger to auto-derive the continent.
+        3. Persists the node and logs the creation event including the resolved geography.
+
+        Args:
+            payload: Data transfer object containing the new node's details.
+
+        Returns:
+            LogisticsNodeResponseDTO with the created node data.
         """
         node = self.model_class(
             name=payload.name,
             address=payload.address,
             city=payload.city,
             country=payload.country,
-            # continent is intentionally omitted — derived by the ORM validator
         )
         created = await self.repo.create(node)
         logger.info(
@@ -105,13 +132,24 @@ class LogisticsNodeService:
         payload: LogisticsNodeUpdateDTO,
     ) -> LogisticsNodeResponseDTO:
         """
-        Partially updates a logistics node (PATCH).
+        Updates an existing logistics node's attributes partially.
 
-        - If `country` is included, the ORM @validates trigger re-derives
-          `continent` automatically.
-        - `continent` is never part of the payload, so it cannot be
-          set to an inconsistent value (e.g. Colombia → Africa).
-        - Captures a before/after diff and stores it in the audit context.
+        Workflow:
+        1. Retrieves the node and verifies its existence.
+        2. Identifies which fields are being updated for the audit trail.
+        3. If `country` is changed, the ORM re-derives the `continent` automatically.
+        4. Persists the changes and calculates the before/after state diff.
+        5. Pushes the diff into the global audit context for middleware processing.
+
+        Args:
+            node_id: The unique identifier of the node to update.
+            payload: Data transfer object containing the fields to update.
+
+        Returns:
+            LogisticsNodeResponseDTO with the updated node details.
+
+        Raises:
+            HTTPException: 404 if the node is not found.
         """
         node = await self.repo.get_by_id(node_id)
         if not node:
@@ -122,20 +160,16 @@ class LogisticsNodeService:
 
         update_data = payload.model_dump(exclude_unset=True)
 
-        # Capture 'before' state for audit diff
-        # Include continent so the audit log reflects its potential change
         audit_fields = list(update_data.keys())
         if "country" in audit_fields and "continent" not in audit_fields:
             audit_fields.append("continent")
         before_state = {field: getattr(node, field) for field in audit_fields}
 
-        # Apply updates — if country changes, @validates re-derives continent
         for field, value in update_data.items():
             setattr(node, field, value)
 
         updated = await self.repo.update(node)
 
-        # Build diff and push to audit context
         diff = {}
         for field, old_val in before_state.items():
             new_val = getattr(updated, field)
@@ -150,7 +184,19 @@ class LogisticsNodeService:
         return LogisticsNodeResponseDTO.model_validate(updated)
 
     async def delete_node(self, node_id: uuid.UUID) -> None:
-        """Deletes a logistics node. Raises 404 if not found."""
+        """
+        Permanently removes a logistics node from the system.
+
+        Workflow:
+        1. Retrieves the node and verifies it exists.
+        2. Invokes the repository to delete the record.
+
+        Args:
+            node_id: The unique identifier of the node to delete.
+
+        Raises:
+            HTTPException: 404 if the node is not found.
+        """
         node = await self.repo.get_by_id(node_id)
         if not node:
             raise HTTPException(
