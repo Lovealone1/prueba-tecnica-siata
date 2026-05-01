@@ -5,7 +5,7 @@ from typing import cast, List
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.v1_0.middlewares import RequestInfoMiddleware
+from app.middlewares import RequestInfoMiddleware
 
 from app.core.settings import settings
 from app.core.logger import logger

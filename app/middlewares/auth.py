@@ -23,25 +23,8 @@ async def require_authenticated(
         Provide["redis_cache_service"]
     ),
 ) -> User:
-    """
-    FastAPI dependency – resolves the currently authenticated user.
-
-    Returns
-    -------
-    User
-        The active, authenticated ``User`` ORM instance.
-
-    Raises
-    ------
-    HTTPException(401)
-        If the token is missing, malformed, expired, or the session has been
-        revoked.
-    HTTPException(403)
-        If the user account is deactivated.
-    """
     token = credentials.credentials
 
-    # --- 1. Decode and validate JWT -------------------------------------------
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
         user_id_str: str | None = payload.get("sub")
@@ -66,7 +49,6 @@ async def require_authenticated(
             detail="Invalid token",
         )
 
-    # --- 2. Validate Redis session ---------------------------------------------
     session_key = f"session:{user_id}:{sid}"
     session_data = await redis_cache.get(session_key)
     if not session_data:
@@ -75,7 +57,6 @@ async def require_authenticated(
             detail="Session revoked or expired",
         )
 
-    # --- 3. Load and validate user record -------------------------------------
     result = await db.execute(select(User).where(User.id == user_id))
     user: User | None = result.scalar_one_or_none()
 
