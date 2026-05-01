@@ -9,7 +9,6 @@ from sqlalchemy import select
 
 from app.core.settings import settings
 from app.core.database import get_db
-from app.app_containers import ApplicationContainer
 from app.infraestructure.redis.redis_cache_service import RedisCacheService
 from app.infraestructure.models.user import User
 
@@ -21,7 +20,7 @@ async def require_authenticated(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: AsyncSession = Depends(get_db),
     redis_cache: RedisCacheService = Depends(
-        Provide[ApplicationContainer.redis_cache_service]
+        Provide["redis_cache_service"]
     ),
 ) -> User:
     """

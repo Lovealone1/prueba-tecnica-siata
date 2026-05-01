@@ -7,7 +7,6 @@ from sqlalchemy import select
 import uuid
 
 from app.core.settings import settings
-from app.app_containers import ApplicationContainer
 from app.infraestructure.redis.redis_cache_service import RedisCacheService
 from app.infraestructure.models.user import User
 from app.core.database import get_db
@@ -18,7 +17,7 @@ security = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
-    redis_cache: RedisCacheService = Depends(Provide[ApplicationContainer.redis_cache_service])
+    redis_cache: RedisCacheService = Depends(Provide["redis_cache_service"])
 ) -> User:
     token = credentials.credentials
     try:

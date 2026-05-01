@@ -1,5 +1,2 @@
-from .service import AuthService
-from .dependencies import get_current_user, get_current_sid
-from .dto.schemas import *
-
-__all__ = ["AuthService", "get_current_user", "get_current_sid"]
+# Keep this file minimal to avoid circular imports during DI wiring.
+# Import from specific files instead of the package root.

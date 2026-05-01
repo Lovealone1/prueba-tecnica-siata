@@ -3,7 +3,7 @@ from dependency_injector.wiring import Provide, inject
 import uuid
 from typing import List
 
-from app.app_containers import ApplicationContainer
+from typing import List
 from .dto.schemas import (
     OTPRequest, OTPVerifyRequest, AuthResponse, SessionResponse, AuthMeResponse
 )
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @inject
 async def request_otp(
     payload: OTPRequest,
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     await auth_service.request_otp(payload.email, payload.intent)
     return {"message": "OTP sent to email"}
@@ -27,7 +27,7 @@ async def request_otp(
 async def verify_otp(
     payload: OTPVerifyRequest,
     request: Request,
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     """
     Verify the OTP provided by the user.
@@ -51,7 +51,7 @@ async def verify_otp(
 @inject
 async def get_sessions(
     current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     return await auth_service.get_sessions(current_user.id)
 
@@ -60,7 +60,7 @@ async def get_sessions(
 async def logout(
     current_user: User = Depends(get_current_user),
     sid: str = Depends(get_current_sid),
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     await auth_service.revoke_session(current_user.id, sid)
     return {"message": "Logged out successfully"}
@@ -69,7 +69,7 @@ async def logout(
 @inject
 async def logout_all(
     current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     await auth_service.revoke_all_sessions(current_user.id)
     return {"message": "All sessions revoked"}
@@ -79,7 +79,7 @@ async def logout_all(
 async def revoke_session(
     sid: str,
     current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(Provide[ApplicationContainer.api_container.auth_service])
+    auth_service: AuthService = Depends(Provide["auth_service"])
 ):
     await auth_service.revoke_session(current_user.id, sid)
     return {"message": "Session revoked"}
