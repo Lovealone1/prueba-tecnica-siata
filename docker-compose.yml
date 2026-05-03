@@ -45,20 +45,22 @@ services:
       - "127.0.0.1:8081:8081"
     depends_on:
       - social-redis
-  # Backend (Se definirá la imagen más adelante)
-  # prueba-tecnica-siata:
-  #   build: .
-  #   container_name: prueba-tecnica-siata
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DATABASE_URL=postgresql://postgres:password@db:5432/fifawcp
-  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-secret}@social-redis:6379/0
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     social-redis:
-  #       condition: service_started
+  # Backend principal (FastAPI)
+  prueba-tecnica-siata:
+    build: .
+    container_name: prueba-tecnica-siata
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/pt-siata
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-secret}@social-redis:6379/0
+      - PORT=8000
+      - NODE_ENV=development
+    depends_on:
+      db:
+        condition: service_healthy
+      social-redis:
+        condition: service_started
 
 volumes:
   redis_data:
