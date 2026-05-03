@@ -12,6 +12,8 @@ from app.v1_0.modules.shipment.repository import ShipmentRepository
 from app.v1_0.modules.shipment.service import ShipmentService
 from app.infraestructure.models.warehouse import Warehouse
 from app.infraestructure.models.seaport import Seaport
+from app.v1_0.modules.user.repository import AdminUserRepository
+from app.v1_0.modules.user.service import AdminUserService
 
 
 class APIContainer(containers.DeclarativeContainer):
@@ -27,6 +29,7 @@ class APIContainer(containers.DeclarativeContainer):
             "app.v1_0.modules.logistics.warehouse_router",
             "app.v1_0.modules.logistics.seaport_router",
             "app.v1_0.modules.shipment.router",
+            "app.v1_0.modules.user.router",
         ]
     )
     db_session = providers.Dependency()
@@ -118,5 +121,18 @@ class APIContainer(containers.DeclarativeContainer):
         product_repo=product_repository,
         warehouse_repo=warehouse_repository,
         seaport_repo=seaport_repository,
+        redis_cache=redis_cache_service,
+    )
+
+    # User Admin
+
+    admin_user_repository = providers.Factory(
+        AdminUserRepository,
+        db_maker=db_session,
+    )
+
+    admin_user_service = providers.Singleton(
+        AdminUserService,
+        user_repository=admin_user_repository,
         redis_cache=redis_cache_service,
     )

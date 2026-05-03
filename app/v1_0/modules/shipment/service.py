@@ -107,8 +107,37 @@ class ShipmentService:
             end_date=end_date
         )
         
+        # Recalculate extra fees for the response (since they aren't persisted in this version)
+        response_data = []
+        for s in shipments:
+            product = await self._product_repo.get_by_id(s.product_id)
+            dest_country = ""
+            dest_continent = ""
+            if s.warehouse_id:
+                node = await self._warehouse_repo.get_by_id(s.warehouse_id)
+                if node: dest_country, dest_continent = node.country, node.continent
+            elif s.seaport_id:
+                node = await self._seaport_repo.get_by_id(s.seaport_id)
+                if node: dest_country, dest_continent = node.country, node.continent
+            
+            # Recalculate to extract extra_fee from the persisted combined base_price
+            _, _, total_base_price, extra_fee = ShipmentCalculator.calculate(
+                dispatch_country=s.dispatch_location,
+                dispatch_continent=s.dispatch_continent,
+                dest_country=dest_country,
+                dest_continent=dest_continent,
+                product_size=product.size if product else "SMALL",
+                quantity=s.product_quantity,
+                registry_date=s.registry_date
+            )
+            
+            res_dto = ShipmentResponseDTO.model_validate(s)
+            res_dto.applied_extra_fee = extra_fee
+            res_dto.base_price = total_base_price
+            response_data.append(res_dto)
+
         return ShipmentListResponseDTO(
-            data=[ShipmentResponseDTO.model_validate(s) for s in shipments],
+            data=response_data,
             total=total,
             skip=skip,
             limit=limit
@@ -133,7 +162,32 @@ class ShipmentService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Shipment {shipment_id} not found."
             )
-        return ShipmentResponseDTO.model_validate(shipment)
+            
+        # Recalculate extra fee breakdown for the detail view
+        product = await self._product_repo.get_by_id(shipment.product_id)
+        dest_country = ""
+        dest_continent = ""
+        if shipment.warehouse_id:
+            node = await self._warehouse_repo.get_by_id(shipment.warehouse_id)
+            if node: dest_country, dest_continent = node.country, node.continent
+        elif shipment.seaport_id:
+            node = await self._seaport_repo.get_by_id(shipment.seaport_id)
+            if node: dest_country, dest_continent = node.country, node.continent
+
+        _, _, total_base_price, extra_fee = ShipmentCalculator.calculate(
+            dispatch_country=shipment.dispatch_location,
+            dispatch_continent=shipment.dispatch_continent,
+            dest_country=dest_country,
+            dest_continent=dest_continent,
+            product_size=product.size if product else "SMALL",
+            quantity=shipment.product_quantity,
+            registry_date=shipment.registry_date
+        )
+
+        response = ShipmentResponseDTO.model_validate(shipment)
+        response.base_price = total_base_price
+        response.applied_extra_fee = extra_fee
+        return response
 
     def _to_base36(self, number: int) -> str:
         """
