@@ -25,6 +25,7 @@ async def list_users(
 async def update_user_role(
     user_id: uuid.UUID,
     payload: UserUpdateRoleDTO,
+    _admin: User = _allowed_roles,
     _u: User = Depends(audit_log(action="user.update_role", metadata={"entity": "User"})),
     service: AdminUserService = Depends(Provide["admin_user_service"]),
 ):
