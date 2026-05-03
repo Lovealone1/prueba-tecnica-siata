@@ -19,6 +19,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
             "app.middlewares.auth",
             "app.middlewares.roles",
             "app.middlewares.audit",
+            "app.v1_0.modules.user.router",
         ]
     )
     db_session = providers.Object(async_session)

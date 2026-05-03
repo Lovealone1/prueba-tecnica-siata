@@ -41,7 +41,7 @@ class AuthService:
         self.jwt_secret = settings.JWT_SECRET
         self.jwt_expires = settings.JWT_EXPIRES_IN_MINUTES
 
-    async def request_otp(self, email: str, intent: str) -> None:
+    async def request_otp(self, email: str, intent: str) -> int:
         """
         Generates and dispatches a One-Time Password (OTP) for authentication.
 
@@ -56,6 +56,12 @@ class AuthService:
             intent: The purpose of the OTP (e.g., LOGIN, REGISTER).
         """
         email = email.lower().strip()
+        
+        if intent == "LOGIN":
+            user = await self.user_repository.get_by_email(email)
+            if not user:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
         otp_key = f"otp:{email}"
         attempts_key = f"otp_attempts:{email}"
 
@@ -68,6 +74,7 @@ class AuthService:
             await self.redis.delete(attempts_key)
             
         await self.otp_sender.send(email, otp, intent)
+        return self.otp_ttl
 
     async def verify_otp(
         self, 

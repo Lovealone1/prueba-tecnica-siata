@@ -19,8 +19,11 @@ async def request_otp(
     payload: OTPRequest,
     auth_service: AuthService = Depends(Provide["auth_service"])
 ):
-    await auth_service.request_otp(payload.email, payload.intent)
-    return {"message": "OTP sent to email"}
+    ttl = await auth_service.request_otp(payload.email, payload.intent)
+    return {
+        "message": "OTP sent to email",
+        "ttl_seconds": ttl
+    }
 
 @router.post("/otp/verify", response_model=AuthResponse)
 @inject
